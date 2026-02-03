@@ -4,6 +4,10 @@ import { AppService } from './app.service';
 
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { KidModule } from './kids/kid.module';
+import { FreeTrialModule } from './free-trial/free-trial.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { BookingsModule } from './bookings/bookings.module';
 
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -20,12 +24,17 @@ import { User } from 'src/users/user.entity';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       entities: [User],
+      autoLoadEntities: true,
       synchronize: false,
     }),
     UsersModule,
     AuthModule,
+    KidModule,
+    FreeTrialModule,
+    SubscriptionsModule,
+    BookingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

@@ -4,6 +4,11 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors({
+    origin: process.env.WEB_URL || 'http://localhost:5173',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Taraki Backend')
@@ -22,4 +27,4 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3002);
 }
-bootstrap();
+void bootstrap();

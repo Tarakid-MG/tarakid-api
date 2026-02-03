@@ -7,34 +7,40 @@ import { MailerService } from './mailer.service';
 
 @Injectable()
 export class VerificationService {
-    constructor(
-        @InjectRepository(User)
-        private userRepo: Repository<User>,
-        private mailerService: MailerService,
-    ) { }
+  constructor(
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
+    private mailerService: MailerService,
+  ) {}
 
-    async verify(token: string) {
-        const user = await this.userRepo.findOne({ where: { verificationToken: token } });
-        if (!user) throw new BadRequestException('Invalid or expired verification token');
+  async verify(token: string) {
+    const user = await this.userRepo.findOne({
+      where: { verificationToken: token },
+    });
+    if (!user)
+      throw new BadRequestException('Jeton de vérification invalide ou expiré');
 
-        user.isVerified = true;
-        user.verificationToken = undefined;
-        await this.userRepo.save(user);
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    await this.userRepo.save(user);
 
-        return { message: 'Account verified successfully' };
-    }
+    return { message: 'Compte vérifié avec succès' };
+  }
 
-    async resendVerification(email: string) {
-        const user = await this.userRepo.findOne({ where: { email } });
-        if (!user) throw new BadRequestException('User not found');
-        if (user.isVerified) throw new BadRequestException('Account already verified');
+  async resendVerification(email: string) {
+    const user = await this.userRepo.findOne({ where: { email } });
+    if (!user) throw new BadRequestException('Utilisateur non trouvé');
+    if (user.isVerified) throw new BadRequestException('Compte déjà vérifié');
 
-        const verificationToken = crypto.randomBytes(32).toString('hex');
-        user.verificationToken = verificationToken;
-        await this.userRepo.save(user);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    user.verificationToken = verificationToken;
+    await this.userRepo.save(user);
 
-        await this.mailerService.sendVerificationEmail(user.email, verificationToken);
+    await this.mailerService.sendVerificationEmail(
+      user.email,
+      verificationToken,
+    );
 
-        return { message: 'Verification email resent' };
-    }
+    return { message: 'Email de vérification renvoyé' };
+  }
 }
