@@ -1,5 +1,17 @@
-import { IsEnum, IsInt, IsString, IsArray, IsNotEmpty } from 'class-validator';
-import { Gender, EnglishLevel, MotherTongueLevel } from '../kid.entity';
+import {
+  IsEnum,
+  IsInt,
+  IsString,
+  IsArray,
+  IsNotEmpty,
+  IsOptional,
+} from 'class-validator';
+import {
+  Gender,
+  EnglishLevel,
+  MotherTongueLevel,
+  KidLevel,
+} from '../kid.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateKidDto {
@@ -18,7 +30,11 @@ export class CreateKidDto {
 
   @ApiProperty({ enum: MotherTongueLevel })
   @IsEnum(MotherTongueLevel)
-  motherTongueProficiency: MotherTongueLevel;
+  motherTongueSpeakingLevel: MotherTongueLevel;
+
+  @ApiProperty({ enum: MotherTongueLevel })
+  @IsEnum(MotherTongueLevel)
+  motherTongueReadingLevel: MotherTongueLevel;
 
   @ApiProperty({ enum: EnglishLevel })
   @IsEnum(EnglishLevel)
@@ -36,4 +52,9 @@ export class CreateKidDto {
   @IsArray()
   @IsString({ each: true })
   hobbies: string[];
+
+  @ApiProperty({ enum: KidLevel })
+  @IsEnum(KidLevel)
+  @IsOptional()
+  level?: KidLevel;
 }

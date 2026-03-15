@@ -22,6 +22,12 @@ export class User {
   @Column({ unique: true })
   email: string;
 
+  @Column({ nullable: true })
+  firstName?: string;
+
+  @Column({ nullable: true })
+  lastName?: string;
+
   @Column({ unique: true, nullable: true })
   googleId?: string;
 
@@ -52,6 +58,48 @@ export class User {
 
   @Column({ default: 0 })
   credits: number;
+
+  @Column({ nullable: true })
+  phoneNumber?: string;
+
+  @Column({ nullable: true })
+  address?: string;
+
+  @Column({ default: 10 })
+  commitmentScore: number;
+
+  @Column({ default: 'average' })
+  competenceLevel: string;
+
+  @Column({ default: 0 })
+  finishedCourses: number;
+
+  @Column({ default: 0 })
+  canceledCourses: number;
+
+  @Column({ default: 0 })
+  lateCourses: number;
+
+  @Column({ default: 0 })
+  thumbsUp: number;
+
+  @Column({ default: 0 })
+  thumbsDown: number;
+
+  @Column({ default: 0 })
+  star5: number;
+
+  @Column({ default: 0 })
+  star4: number;
+
+  @Column({ default: 0 })
+  star3: number;
+
+  @Column({ default: 0 })
+  star2: number;
+
+  @Column({ default: 0 })
+  star1: number;
 
   @OneToMany(() => Kid, (kid) => kid.user)
   kids: Kid[];

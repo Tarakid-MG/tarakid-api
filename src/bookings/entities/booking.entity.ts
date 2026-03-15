@@ -17,6 +17,9 @@ export enum BookingStatus {
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
   MISSED = 'MISSED',
+  ABSENT = 'ABSENT',
+  REPORTED = 'REPORTED',
+  DONE_BUT_MISSING = 'DONE_BUT_MISSING',
 }
 
 @Entity('bookings')

@@ -14,6 +14,7 @@ import { CreateSessionDto } from './dto/create-session.dto';
 import { CreateBulkSessionsDto } from './dto/create-bulk-sessions.dto';
 import { MailerService } from '../auth/services/mailer.service';
 import { User } from '../users/user.entity';
+import { BookingsService } from '../bookings/bookings.service';
 
 @Injectable()
 export class FreeTrialService {
@@ -24,6 +25,7 @@ export class FreeTrialService {
     private bookingRepository: Repository<FreeTrialBooking>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private bookingsService: BookingsService,
     private mailerService: MailerService,
   ) {}
 
@@ -54,6 +56,7 @@ export class FreeTrialService {
     userId: number,
     sessionId: number,
     kidId?: string,
+    teacherId?: number,
   ): Promise<FreeTrialBooking> {
     const session = await this.sessionRepository.findOne({
       where: { id: sessionId },
@@ -125,6 +128,7 @@ export class FreeTrialService {
       sessionId,
       kidId: kidId,
       status: BookingStatus.CONFIRMED, // Auto confirm for now
+      teacherId,
     });
 
     await this.bookingRepository.save(booking);
@@ -164,6 +168,43 @@ export class FreeTrialService {
 
     return booking;
   }
+
+  async bookByDateTime(
+    userId: number,
+    date: string,
+    startTime: string,
+    kidId?: string,
+  ): Promise<FreeTrialBooking> {
+    const isAvailable = await this.bookingsService.isSlotAvailable(
+      date,
+      startTime,
+    );
+
+    if (!isAvailable) {
+      throw new BadRequestException('Ce créneau n’est plus disponible');
+    }
+
+    // 2. Find or create a session for this slot
+    let session = await this.sessionRepository.findOne({
+      where: { date, startTime, type: 'FREE_TRIAL' },
+    });
+
+    if (!session) {
+      session = this.sessionRepository.create({
+        date,
+        startTime,
+        endTime: this.calculateEndTime(startTime),
+        capacity: 10, // Default capacity for trials if not specified
+        type: 'FREE_TRIAL',
+        isActive: true,
+      });
+      await this.sessionRepository.save(session);
+    }
+
+    // 3. Book the session
+    return this.bookSession(userId, session.id, kidId);
+  }
+
   async deleteSession(id: number): Promise<void> {
     const session = await this.sessionRepository.findOne({ where: { id } });
     if (!session) {
@@ -254,6 +295,34 @@ export class FreeTrialService {
 
     // Update booking status
     booking.status = BookingStatus.CANCELLED;
+    await this.bookingRepository.save(booking);
+
+    // Decrement booked slots
+    if (booking.session) {
+      booking.session.bookedSlots = Math.max(
+        0,
+        booking.session.bookedSlots - 1,
+      );
+      await this.sessionRepository.save(booking.session);
+    }
+  }
+
+  async reportBooking(bookingId: number, userId: number): Promise<void> {
+    const booking = await this.bookingRepository.findOne({
+      where: { id: bookingId, userId },
+      relations: ['session'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Réservation non trouvée');
+    }
+
+    if (booking.status === BookingStatus.REPORTED) {
+      throw new BadRequestException('Cette réservation est déjà reportée');
+    }
+
+    // Update booking status
+    booking.status = BookingStatus.REPORTED;
     await this.bookingRepository.save(booking);
 
     // Decrement booked slots

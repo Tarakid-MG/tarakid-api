@@ -6,6 +6,10 @@ import { FreeTrialSession } from '../free-trial/entities/free-trial-session.enti
 import { FreeTrialBooking } from '../free-trial/entities/free-trial-booking.entity';
 import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { Booking } from '../bookings/entities/booking.entity';
+import { Unit } from '../lessons/entities/unit.entity';
+import { Lesson } from '../lessons/entities/lesson.entity';
+import { TeacherAvailability } from '../bookings/entities/teacher-availability.entity';
+import { TeacherBreak } from '../bookings/entities/teacher-break.entity';
 
 export const AppDataSource = new DataSource({
   type: 'mariadb',
@@ -21,6 +25,10 @@ export const AppDataSource = new DataSource({
     FreeTrialBooking,
     Subscription,
     Booking,
+    Unit,
+    Lesson,
+    TeacherAvailability,
+    TeacherBreak,
   ],
   migrations: [
     process.env.NODE_ENV === 'production'

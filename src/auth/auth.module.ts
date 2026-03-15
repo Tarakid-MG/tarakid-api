@@ -24,6 +24,7 @@ import { KidModule } from '../kids/kid.module';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ||
             '30d') as any,
         },

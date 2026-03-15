@@ -31,6 +31,15 @@ export enum MotherTongueLevel {
   FLUENT = 'FLUENT',
 }
 
+export enum KidLevel {
+  L0 = 'L0',
+  L1 = 'L1',
+  L2 = 'L2',
+  L3 = 'L3',
+  L4 = 'L4',
+  L5 = 'L5',
+}
+
 @Entity('kids')
 export class Kid {
   @PrimaryGeneratedColumn('uuid')
@@ -46,7 +55,10 @@ export class Kid {
   gender: Gender;
 
   @Column({ type: 'enum', enum: MotherTongueLevel })
-  motherTongueProficiency: MotherTongueLevel;
+  motherTongueSpeakingLevel: MotherTongueLevel;
+
+  @Column({ type: 'enum', enum: MotherTongueLevel })
+  motherTongueReadingLevel: MotherTongueLevel;
 
   @Column({ type: 'enum', enum: EnglishLevel })
   englishReadingLevel: EnglishLevel;
@@ -54,11 +66,17 @@ export class Kid {
   @Column({ type: 'enum', enum: EnglishLevel })
   englishSpeakingLevel: EnglishLevel;
 
+  @Column({ type: 'enum', enum: KidLevel, default: KidLevel.L0 })
+  level: KidLevel;
+
   @Column()
   learningDuration: string;
 
   @Column('simple-array')
   hobbies: string[];
+
+  @Column({ type: 'text', nullable: true })
+  avatarUrl?: string;
 
   @ManyToOne(() => User, (user) => user.kids, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

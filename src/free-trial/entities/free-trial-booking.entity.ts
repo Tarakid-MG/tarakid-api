@@ -13,6 +13,7 @@ export enum BookingStatus {
   PENDING = 'PENDING',
   CONFIRMED = 'CONFIRMED',
   CANCELLED = 'CANCELLED',
+  REPORTED = 'REPORTED',
 }
 
 @Entity('free_trial_bookings')
@@ -44,6 +45,9 @@ export class FreeTrialBooking {
     default: BookingStatus.PENDING,
   })
   status: BookingStatus;
+
+  @Column({ nullable: true })
+  teacherId: number;
 
   @CreateDateColumn()
   createdAt: Date;

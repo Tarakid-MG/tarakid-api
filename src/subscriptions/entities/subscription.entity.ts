@@ -20,6 +20,7 @@ export enum SubscriptionStatus {
   ACTIVE = 'ACTIVE',
   EXPIRED = 'EXPIRED',
   CANCELLED = 'CANCELLED',
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
 }
 
 @Entity('subscriptions')
@@ -74,9 +75,12 @@ export class Subscription {
   @Column({
     type: 'enum',
     enum: SubscriptionStatus,
-    default: SubscriptionStatus.ACTIVE,
+    default: SubscriptionStatus.PENDING_PAYMENT,
   })
   status: SubscriptionStatus;
+
+  @Column({ nullable: true })
+  stripeSessionId: string;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -78,18 +78,87 @@ export class SubscriptionsService {
       pricePerMonth: createSubscriptionDto.pricePerMonth,
       startDate,
       endDate,
-      status: SubscriptionStatus.ACTIVE,
+      status: SubscriptionStatus.PENDING_PAYMENT,
     });
+
+    return this.subscriptionRepository.save(subscription);
+  }
+
+  async activateSubscription(subscriptionId: string): Promise<Subscription> {
+    console.log(`Activating subscription: ${subscriptionId}`);
+    const subscription = await this.subscriptionRepository.findOne({
+      where: { id: subscriptionId },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('Abonnement non trouvé');
+    }
+
+    if (subscription.status === SubscriptionStatus.ACTIVE) {
+      return subscription;
+    }
+
+    // Check for existing active subscription for this user/kid to "stack" dates
+    const existingActive = await this.subscriptionRepository.findOne({
+      where: {
+        userId: subscription.userId,
+        kidId: subscription.kidId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+      order: { endDate: 'DESC' },
+    });
+
+    subscription.status = SubscriptionStatus.ACTIVE;
+
+    // If we have an active sub, start this one when that one ends
+    const baseDate =
+      existingActive && existingActive.endDate > new Date()
+        ? new Date(existingActive.endDate)
+        : new Date();
+
+    subscription.startDate = baseDate;
+    const endDate = new Date(subscription.startDate);
+    switch (subscription.commitmentType) {
+      case CommitmentType.MONTHLY:
+        endDate.setMonth(endDate.getMonth() + 1);
+        break;
+      case CommitmentType.THREE_MONTHS:
+        endDate.setMonth(endDate.getMonth() + 3);
+        break;
+      case CommitmentType.SIX_MONTHS:
+        endDate.setMonth(endDate.getMonth() + 6);
+        break;
+    }
+    subscription.endDate = endDate;
 
     const savedSubscription =
       await this.subscriptionRepository.save(subscription);
 
-    // Update user credits for backward compatibility
-    user.credits = (user.credits || 0) + totalCredits;
-    user.subscriptionPlan = createSubscriptionDto.planName;
-    await this.userRepository.save(user);
+    // Update user credits
+    const user = await this.userRepository.findOne({
+      where: { id: subscription.userId },
+    });
+    if (user) {
+      const oldCredits = user.credits || 0;
+      user.credits = oldCredits + subscription.totalCredits;
+      user.subscriptionPlan = subscription.planName;
+      console.log(
+        `User ${user.id} credits: ${oldCredits} -> ${user.credits} (added ${subscription.totalCredits})`,
+      );
+      await this.userRepository.save(user);
+    } else {
+      console.warn(
+        `User ${subscription.userId} not found during subscription activation`,
+      );
+    }
 
     return savedSubscription;
+  }
+
+  async updateSessionId(id: string, sessionId: string): Promise<void> {
+    await this.subscriptionRepository.update(id, {
+      stripeSessionId: sessionId,
+    });
   }
 
   async findByUser(userId: number): Promise<Subscription[]> {

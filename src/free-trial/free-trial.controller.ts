@@ -46,6 +46,30 @@ export class FreeTrialController {
       body.kidId,
     );
   }
+
+  @Post('book-by-datetime')
+  @ApiOperation({ summary: 'Book a free trial session by date and time' })
+  bookByDateTime(
+    @Body()
+    body: {
+      userId: number;
+      date: string;
+      startTime: string;
+      kidId?: string;
+    },
+  ) {
+    if (!body.userId || !body.date || !body.startTime) {
+      throw new BadRequestException(
+        'userId, date et startTime sont requis pour la réservation',
+      );
+    }
+    return this.freeTrialService.bookByDateTime(
+      body.userId,
+      body.date,
+      body.startTime,
+      body.kidId,
+    );
+  }
   @Delete('sessions/:id')
   @ApiOperation({ summary: 'Delete a free trial session (Admin)' })
   deleteSession(@Param('id', ParseIntPipe) id: number) {
@@ -73,8 +97,8 @@ export class FreeTrialController {
     return this.freeTrialService.getUserBookings(userId);
   }
 
-  @Delete('bookings/:bookingId')
-  @ApiOperation({ summary: 'Cancel a booking' })
+  @Patch('bookings/:bookingId/cancel')
+  @ApiOperation({ summary: 'Cancel a free trial booking' })
   cancelBooking(
     @Param('bookingId', ParseIntPipe) bookingId: number,
     @Body('userId') userId: number,
@@ -85,5 +109,19 @@ export class FreeTrialController {
       );
     }
     return this.freeTrialService.cancelBooking(bookingId, userId);
+  }
+
+  @Patch('bookings/:bookingId/report')
+  @ApiOperation({ summary: 'Report a free trial booking' })
+  reportBooking(
+    @Param('bookingId', ParseIntPipe) bookingId: number,
+    @Body('userId') userId: number,
+  ) {
+    if (!userId) {
+      throw new BadRequestException(
+        'userId est requis pour reporter la réservation',
+      );
+    }
+    return this.freeTrialService.reportBooking(bookingId, userId);
   }
 }

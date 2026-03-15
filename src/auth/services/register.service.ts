@@ -19,10 +19,9 @@ export class RegisterService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const role = dto.role?.toLowerCase();
-    if (role === UserRole.CLIENT && !dto.accountType)
+    if (dto.role === UserRole.CLIENT && !dto.accountType)
       throw new BadRequestException('accountType requis pour le client');
-    if (role !== UserRole.CLIENT && dto.accountType)
+    if (dto.role !== UserRole.CLIENT && dto.accountType)
       throw new BadRequestException('accountType uniquement pour le client');
 
     const exists = await this.userRepo.findOne({ where: { email: dto.email } });
