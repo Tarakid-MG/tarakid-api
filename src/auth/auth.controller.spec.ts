@@ -93,11 +93,17 @@ describe('AuthController', () => {
   describe('assignRole', () => {
     it('should call registerService.assignRole', async () => {
       const body = { userId: 1, role: UserRole.ADMIN };
-      mockRegisterService.assignRole.mockResolvedValue({ id: 1, role: UserRole.ADMIN });
+      mockRegisterService.assignRole.mockResolvedValue({
+        id: 1,
+        role: UserRole.ADMIN,
+      });
 
       const result = await controller.assignRole(body);
 
-      expect(registerService.assignRole).toHaveBeenCalledWith(body.userId, body.role);
+      expect(registerService.assignRole).toHaveBeenCalledWith(
+        body.userId,
+        body.role,
+      );
       expect(result.role).toBe(UserRole.ADMIN);
     });
   });

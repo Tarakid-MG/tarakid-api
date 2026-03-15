@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { User } from '../users/user.entity';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthController } from './auth.controller';
 import { MailerService } from './services/mailer.service';
 import { RegisterService } from './services/register.service';
@@ -11,6 +12,7 @@ import { LoginService } from './services/login.service';
 import { VerificationService } from './services/verification.service';
 import { ResetPasswordService } from './services/reset-password.service';
 import { GoogleAuthService } from './services/google-auth.service';
+import { KidModule } from '../kids/kid.module';
 
 @Module({
   imports: [
@@ -21,12 +23,18 @@ import { GoogleAuthService } from './services/google-auth.service';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_SECRET'),
-        signOptions: { expiresIn: (configService.get<string>('JWT_EXPIRES_IN') || '30d') as any },
+        signOptions: {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ||
+            '30d') as any,
+        },
       }),
     }),
+    KidModule,
   ],
   providers: [
     GoogleStrategy,
+    JwtStrategy,
     MailerService,
     RegisterService,
     LoginService,
@@ -36,4 +44,4 @@ import { GoogleAuthService } from './services/google-auth.service';
   ],
   controllers: [AuthController],
 })
-export class AuthModule { }
+export class AuthModule {}

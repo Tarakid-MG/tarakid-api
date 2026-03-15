@@ -1,44 +1,121 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { UserRole } from './enums/user-role.enum';
 import { ClientAccountType } from './enums/client-account-type.enum';
 import { Exclude } from 'class-transformer';
+import { Kid } from '../kids/kid.entity';
+import { FreeTrialBooking } from '../free-trial/entities/free-trial-booking.entity';
+import type { Subscription } from '../subscriptions/entities/subscription.entity';
+import type { Booking } from '../bookings/entities/booking.entity';
 
 @Entity('users')
 export class User {
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column({ unique: true })
-    email: string;
+  @Column({ unique: true })
+  email: string;
 
-    @Column({ unique: true, nullable: true })
-    googleId?: string;
+  @Column({ nullable: true })
+  firstName?: string;
 
-    @Exclude()
-    @Column({ nullable: true })
-    password?: string;
+  @Column({ nullable: true })
+  lastName?: string;
 
-    @Column({ type: 'enum', enum: UserRole })
-    role: UserRole;
+  @Column({ unique: true, nullable: true })
+  googleId?: string;
 
-    @Column({ type: 'enum', enum: ClientAccountType, nullable: true })
-    accountType?: ClientAccountType;
+  @Exclude()
+  @Column({ nullable: true })
+  password?: string;
 
-    @Column({ default: false })
-    isVerified: boolean;
+  @Column({ type: 'enum', enum: UserRole })
+  role: UserRole;
 
-    @Column({ nullable: true })
-    verificationToken?: string;
+  @Column({ type: 'enum', enum: ClientAccountType, nullable: true })
+  accountType?: ClientAccountType;
 
-    @Column({ nullable: true })
-    resetPasswordToken?: string;
+  @Column({ default: false })
+  isVerified: boolean;
 
-    @Column({ type: 'timestamp', nullable: true })
-    resetPasswordExpires?: Date;
+  @Column({ nullable: true })
+  verificationToken?: string;
 
-    @CreateDateColumn()
-    createdAt: Date;
+  @Column({ nullable: true })
+  resetPasswordToken?: string;
 
-    @UpdateDateColumn()
-    updatedAt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  resetPasswordExpires?: Date;
+
+  @Column({ nullable: true })
+  subscriptionPlan?: string;
+
+  @Column({ default: 0 })
+  credits: number;
+
+  @Column({ nullable: true })
+  phoneNumber?: string;
+
+  @Column({ nullable: true })
+  address?: string;
+
+  @Column({ default: 10 })
+  commitmentScore: number;
+
+  @Column({ default: 'average' })
+  competenceLevel: string;
+
+  @Column({ default: 0 })
+  finishedCourses: number;
+
+  @Column({ default: 0 })
+  canceledCourses: number;
+
+  @Column({ default: 0 })
+  lateCourses: number;
+
+  @Column({ default: 0 })
+  thumbsUp: number;
+
+  @Column({ default: 0 })
+  thumbsDown: number;
+
+  @Column({ default: 0 })
+  star5: number;
+
+  @Column({ default: 0 })
+  star4: number;
+
+  @Column({ default: 0 })
+  star3: number;
+
+  @Column({ default: 0 })
+  star2: number;
+
+  @Column({ default: 0 })
+  star1: number;
+
+  @OneToMany(() => Kid, (kid) => kid.user)
+  kids: Kid[];
+
+  @OneToMany(() => FreeTrialBooking, (booking) => booking.user)
+  bookings: FreeTrialBooking[];
+
+  @OneToMany('Subscription', 'user')
+  subscriptions: Subscription[];
+
+  @OneToMany('Booking', 'user')
+  regularBookings: Booking[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

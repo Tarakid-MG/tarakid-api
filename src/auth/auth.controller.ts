@@ -1,4 +1,12 @@
-import { Controller, Post, Body, Get, UseGuards, Req, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Req,
+  Query,
+} from '@nestjs/common';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { UserRole } from '../users/enums/user-role.enum';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
@@ -9,6 +17,11 @@ import { LoginService } from './services/login.service';
 import { VerificationService } from './services/verification.service';
 import { ResetPasswordService } from './services/reset-password.service';
 import { GoogleAuthService } from './services/google-auth.service';
+import { User } from 'src/users/user.entity';
+
+interface RequestUser extends Request {
+  user: User;
+}
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -19,7 +32,7 @@ export class AuthController {
     private verificationService: VerificationService,
     private resetPasswordService: ResetPasswordService,
     private googleAuthService: GoogleAuthService,
-  ) { }
+  ) {}
 
   @Post('register')
   @ApiOperation({ summary: 'Register new user' })
@@ -53,8 +66,19 @@ export class AuthController {
 
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password' })
-  resetPassword(@Query('token') token: string, @Body('password') password: string) {
+  resetPassword(
+    @Query('token') token: string,
+    @Body('password') password: string,
+  ) {
     return this.resetPasswordService.resetPassword(token, password);
+  }
+
+  @Post('verify-password')
+  @ApiOperation({ summary: 'Verify user password (for Kid Mode exit)' })
+  verifyPassword(@Body() body: { userId: number; password: string }) {
+    return this.loginService
+      .verifyPassword(body.userId, body.password)
+      .then((valid) => ({ valid }));
   }
 
   @Get('google')
@@ -67,13 +91,13 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   @ApiOperation({ summary: 'Google auth callback' })
-  googleAuthRedirect(@Req() req: any) {
+  googleAuthRedirect(@Req() req: RequestUser) {
     return this.googleAuthService.handleGoogleLogin(req.user);
   }
 
   @Post('assign-role')
   @ApiOperation({ summary: 'Assign role to user' })
-  assignRole(@Body() body: { userId: number, role: UserRole }) {
+  assignRole(@Body() body: { userId: number; role: UserRole }) {
     // This was in AuthService, but not explicitly moved to any of the new services yet.
     // Given the "each functionality in one service" rule, maybe a UserService or update RegisterService.
     // For now, I'll keep it here but it needs a home. I'll put it in RegisterService as it's user management.
@@ -81,6 +105,6 @@ export class AuthController {
     // Since I'm refactoring, let's just use the repo here or move it.
     // For simplicity and following the rule, I'll add it to RegisterService for now or leave it for later.
     // Actually, I'll move it to RegisterService.
-    return (this.registerService as any).assignRole(body.userId, body.role);
+    return this.registerService.assignRole(body.userId, body.role);
   }
 }
