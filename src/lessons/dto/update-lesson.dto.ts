@@ -1,5 +1,12 @@
-import { IsString, IsNumber, IsOptional, IsUUID } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  IsEnum,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { LessonType } from '../enums/lesson-type.enum';
 
 export class UpdateLessonDto {
   @ApiProperty({ example: 'Introduction to Colors', required: false })
@@ -7,10 +14,14 @@ export class UpdateLessonDto {
   @IsOptional()
   title?: string;
 
-  @ApiProperty({ example: 'genially', required: false })
-  @IsString()
+  @ApiProperty({
+    enum: LessonType,
+    example: LessonType.GENIALLY,
+    required: false,
+  })
+  @IsEnum(LessonType)
   @IsOptional()
-  type?: string;
+  type?: LessonType;
 
   @ApiProperty({
     example: '<div class="container-wrapper-genially">...</div>',
@@ -30,4 +41,9 @@ export class UpdateLessonDto {
   @IsUUID()
   @IsOptional()
   unitId?: string;
+
+  @ApiProperty({ example: 'https://minio/thumb.png', required: false })
+  @IsString()
+  @IsOptional()
+  thumbnailUrl?: string;
 }

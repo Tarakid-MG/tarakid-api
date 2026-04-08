@@ -1,27 +1,14 @@
-import {
-  Controller,
-  Get,
-  Patch,
-  Body,
-  Post,
-  UseGuards,
-  Req,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Controller, Get, Patch, Body, UseGuards, Req } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 //import { RolesGuard } from '../auth/guards/roles.guard';
 //import { Roles } from '../auth/decorators/roles.decorator';
 //import { UserRole } from './enums/user-role.enum';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
-import { UsersService } from './users.service';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { CreateTeacherDto } from './dto/create-teacher.dto';
-import { User } from './user.entity';
+import { UsersService } from '../users.service';
+import { UpdateUserDto } from '../dto/update-user.dto';
+import { RequestWithUser } from '../../auth/interfaces/request-with-user.interface';
 
-interface RequestWithUser extends Request {
-  user: User;
-}
-
-@ApiTags('Users')
+@ApiTags('Client - Users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -43,13 +30,15 @@ export class UsersController {
     return this.usersService.update(req.user.id, dto);
   }
 
-  @Post('admin/create-teacher')
-  //@UseGuards(JwtAuthGuard, RolesGuard)
-  //@Roles(UserRole.ADMIN)
+  @Patch('status')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new teacher account (Admin only)' })
-  @ApiBody({ type: CreateTeacherDto })
-  createTeacher(@Body() dto: CreateTeacherDto) {
-    return this.usersService.createTeacher(dto);
+  @ApiOperation({ summary: 'Update current user online status' })
+  @ApiBody({ schema: { properties: { isOnline: { type: 'boolean' } } } })
+  updateStatus(
+    @Req() req: RequestWithUser,
+    @Body('isOnline') isOnline: boolean,
+  ) {
+    return this.usersService.updateStatus(req.user.id, isOnline);
   }
 }

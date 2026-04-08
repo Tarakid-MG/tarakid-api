@@ -1,9 +1,9 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { Booking, BookingStatus } from './entities/booking.entity';
-import { User } from '../users/user.entity';
-import { MailerService } from '../auth/services/mailer.service';
+import { Booking, BookingStatus } from '../entities/booking.entity';
+import { User } from '../../users/user.entity';
+import { MailerService } from '../../auth/services/mailer.service';
 
 @Injectable()
 export class BookingsNotifierService implements OnModuleInit, OnModuleDestroy {

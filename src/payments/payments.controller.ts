@@ -11,8 +11,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
 import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
 
-@ApiTags('Payments')
+@ApiTags('Client - Payments')
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
@@ -22,7 +23,7 @@ export class PaymentsController {
   @Post('create-checkout-session')
   @ApiOperation({ summary: 'Create a Stripe checkout session' })
   async createCheckoutSession(
-    @Req() req: Request & { user: { id: number } },
+    @Req() req: RequestWithUser,
     @Body('subscriptionId') subscriptionId: string,
   ) {
     const userId = req.user.id;

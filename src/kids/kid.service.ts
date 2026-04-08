@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Kid, KidLevel, EnglishLevel } from './kid.entity';
+import { Kid } from './kid.entity';
+import { EnglishLevel } from './enums/english-level.enum';
+import { KidLevel } from './enums/kid-level.enum';
+import { LevelRule } from '../lessons/entities/level-rule.entity';
+import { Level } from '../lessons/entities/level.entity';
+
 import { CreateKidDto } from './dto/create-kid.dto';
 import { UpdateKidDto } from './dto/update-kid.dto';
 import { User } from '../users/user.entity';
@@ -11,132 +16,84 @@ export class KidService {
   constructor(
     @InjectRepository(Kid)
     private kidRepo: Repository<Kid>,
+    @InjectRepository(LevelRule)
+    private ruleRepo: Repository<LevelRule>,
+    @InjectRepository(Level)
+    private levelRepo: Repository<Level>,
   ) {}
 
-  calculateLevel(
+  async calculateLevel(
     ageInput: number,
     reading: EnglishLevel,
     speaking: EnglishLevel,
-  ): KidLevel {
+  ): Promise<KidLevel> {
     const age = Number(ageInput);
-    let result = KidLevel.L0;
+    const rules = await this.ruleRepo.find({ order: { priority: 'ASC' } });
 
-    if (age < 7) {
-      if (reading === EnglishLevel.FLUENT && speaking === EnglishLevel.FLUENT) {
-        result = KidLevel.L2;
-      } else if (
-        reading === EnglishLevel.FLUENT ||
-        speaking === EnglishLevel.FLUENT ||
-        reading === EnglishLevel.SENTENCES ||
-        speaking === EnglishLevel.SENTENCES
-      ) {
-        result = KidLevel.L1;
+    for (const rule of rules) {
+      // Check age
+      let ageMatch = true;
+      if (rule.minAge !== null && age < rule.minAge) ageMatch = false;
+      if (rule.maxAge !== null && age > rule.maxAge) ageMatch = false;
+
+      if (!ageMatch) continue;
+
+      // Check skills
+      const readingMatch =
+        !rule.englishReadingLevels?.length ||
+        rule.englishReadingLevels.includes(reading);
+      const speakingMatch =
+        !rule.englishSpeakingLevels?.length ||
+        rule.englishSpeakingLevels.includes(speaking);
+
+      let skillMatch = false;
+      if (rule.operator === 'AND') {
+        skillMatch = readingMatch && speakingMatch;
       } else {
-        result = KidLevel.L0;
+        // If everything is empty, it's a catch-all for that age
+        if (
+          !rule.englishReadingLevels?.length &&
+          !rule.englishSpeakingLevels?.length
+        ) {
+          skillMatch = true;
+        } else {
+          skillMatch = readingMatch || speakingMatch;
+        }
       }
-    } else if (age < 9) {
-      if (reading === EnglishLevel.FLUENT && speaking === EnglishLevel.FLUENT) {
-        result = KidLevel.L3;
-      } else if (
-        reading === EnglishLevel.FLUENT ||
-        speaking === EnglishLevel.FLUENT ||
-        reading === EnglishLevel.SENTENCES ||
-        speaking === EnglishLevel.SENTENCES
-      ) {
-        result = KidLevel.L2;
-      } else {
-        result = KidLevel.L1;
-      }
-    } else if (age < 11) {
-      if (reading === EnglishLevel.FLUENT && speaking === EnglishLevel.FLUENT) {
-        result = KidLevel.L4;
-      } else if (
-        reading === EnglishLevel.FLUENT ||
-        speaking === EnglishLevel.FLUENT ||
-        reading === EnglishLevel.SENTENCES ||
-        speaking === EnglishLevel.SENTENCES
-      ) {
-        result = KidLevel.L3;
-      } else {
-        result = KidLevel.L1;
-      }
-    } else if (age < 13) {
-      if (reading === EnglishLevel.FLUENT && speaking === EnglishLevel.FLUENT) {
-        result = KidLevel.L4;
-      } else if (
-        reading === EnglishLevel.FLUENT ||
-        speaking === EnglishLevel.FLUENT ||
-        reading === EnglishLevel.SENTENCES ||
-        speaking === EnglishLevel.SENTENCES
-      ) {
-        result = KidLevel.L3;
-      } else if (
-        reading === EnglishLevel.NONE ||
-        speaking === EnglishLevel.NONE
-      ) {
-        result = KidLevel.L1;
-      } else {
-        result = KidLevel.L2;
-      }
-    } else if (age < 15) {
-      if (reading === EnglishLevel.FLUENT && speaking === EnglishLevel.FLUENT) {
-        result = KidLevel.L4;
-      } else if (
-        reading === EnglishLevel.FLUENT ||
-        speaking === EnglishLevel.FLUENT ||
-        reading === EnglishLevel.SENTENCES ||
-        speaking === EnglishLevel.SENTENCES ||
-        reading === EnglishLevel.WORDS ||
-        speaking === EnglishLevel.WORDS
-      ) {
-        result = KidLevel.L3;
-      } else {
-        result = KidLevel.L2;
-      }
-    } else {
-      // 15-18+
-      if (reading === EnglishLevel.FLUENT && speaking === EnglishLevel.FLUENT) {
-        result = KidLevel.L5;
-      } else if (
-        reading === EnglishLevel.FLUENT ||
-        speaking === EnglishLevel.FLUENT ||
-        reading === EnglishLevel.SENTENCES ||
-        speaking === EnglishLevel.SENTENCES
-      ) {
-        result = KidLevel.L4;
-      } else if (
-        reading === EnglishLevel.WORDS ||
-        speaking === EnglishLevel.WORDS
-      ) {
-        result = KidLevel.L3;
-      } else {
-        result = KidLevel.L2;
+
+      if (skillMatch) {
+        return rule.targetLevelCode;
       }
     }
 
-    return result;
+    return KidLevel.L0;
   }
 
   async findById(id: string): Promise<Kid> {
     const kid = await this.kidRepo.findOne({
       where: { id },
-      relations: ['user'],
+      relations: ['user', 'levelEntity'],
     });
     if (!kid) throw new NotFoundException('Enfant non trouvé');
     return kid;
   }
 
   async create(user: User, dto: CreateKidDto): Promise<Kid> {
-    const level = this.calculateLevel(
+    const levelCode = await this.calculateLevel(
       dto.age,
       dto.englishReadingLevel,
       dto.englishSpeakingLevel,
     );
 
+    const levelEntity = await this.levelRepo.findOne({
+      where: { code: levelCode },
+    });
+
     const kid = this.kidRepo.create({
       ...dto,
       name: dto.childName,
-      level,
+      level: levelCode,
+      levelEntity: levelEntity as Level,
       user,
     });
     return this.kidRepo.save(kid);
@@ -165,11 +122,18 @@ export class KidService {
     if (dto.hobbies) kid.hobbies = dto.hobbies;
 
     // Recalculate level if any level-impacting fields changed
-    kid.level = this.calculateLevel(
+    const newLevelCode = await this.calculateLevel(
       kid.age,
       kid.englishReadingLevel,
       kid.englishSpeakingLevel,
     );
+
+    if (String(kid.level) !== String(newLevelCode)) {
+      kid.level = newLevelCode;
+      kid.levelEntity = (await this.levelRepo.findOne({
+        where: { code: newLevelCode },
+      })) as Level;
+    }
 
     return this.kidRepo.save(kid);
   }

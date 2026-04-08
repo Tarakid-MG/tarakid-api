@@ -29,6 +29,15 @@ export class UsersService {
     return this.userRepo.save(user);
   }
 
+  async updateStatus(id: number, isOnline: boolean): Promise<User> {
+    const user = await this.findById(id);
+    user.isOnline = isOnline;
+    if (isOnline) {
+      user.lastActivity = new Date();
+    }
+    return this.userRepo.save(user);
+  }
+
   async createTeacher(dto: CreateTeacherDto): Promise<User> {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     const teacher = this.userRepo.create({
@@ -38,5 +47,32 @@ export class UsersService {
       isVerified: true,
     });
     return this.userRepo.save(teacher);
+  }
+
+  async findAllTeachers(): Promise<User[]> {
+    return this.userRepo.find({
+      where: { role: UserRole.TEACHER },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findAllClients(): Promise<User[]> {
+    return this.userRepo.find({
+      where: { role: UserRole.CLIENT },
+      relations: ['kids'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async deactivateUser(id: number): Promise<User> {
+    const user = await this.findById(id);
+    user.isActive = false;
+    return this.userRepo.save(user);
+  }
+
+  async reactivateUser(id: number): Promise<User> {
+    const user = await this.findById(id);
+    user.isActive = true;
+    return this.userRepo.save(user);
   }
 }

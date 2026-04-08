@@ -41,6 +41,9 @@ export class User {
   @Column({ type: 'enum', enum: ClientAccountType, nullable: true })
   accountType?: ClientAccountType;
 
+  @Column({ default: true })
+  isActive: boolean;
+
   @Column({ default: false })
   isVerified: boolean;
 
@@ -112,6 +115,15 @@ export class User {
 
   @OneToMany('Booking', 'user')
   regularBookings: Booking[];
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastLogin: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastActivity: Date;
+
+  @Column({ default: false })
+  isOnline: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

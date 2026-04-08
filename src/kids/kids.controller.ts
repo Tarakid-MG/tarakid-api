@@ -23,14 +23,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { KidService } from './kid.service';
 import { CreateKidDto } from './dto/create-kid.dto';
 import { UpdateKidDto } from './dto/update-kid.dto';
-import { User } from '../users/user.entity';
 import { Kid } from './kid.entity';
 import { MinioService } from '../minio/minio.service';
-import { Request } from 'express';
-
-interface RequestWithUser extends Request {
-  user: User;
-}
+import { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
 
 interface MulterFile {
   originalname: string;
@@ -39,7 +34,7 @@ interface MulterFile {
   size: number;
 }
 
-@ApiTags('Kids')
+@ApiTags('Client - Kids')
 @Controller('kids')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()

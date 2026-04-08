@@ -1,7 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Lesson } from './lesson.entity';
-import { KidLevel } from '../../kids/kid.entity';
+import { KidLevel } from '../../kids/enums/kid-level.enum';
+import { Level } from './level.entity';
 
 @Entity('units')
 export class Unit {
@@ -14,8 +22,15 @@ export class Unit {
   title: string;
 
   @ApiProperty({ enum: KidLevel, example: KidLevel.L1 })
-  @Column({ type: 'enum', enum: KidLevel })
+  @Column({ type: 'enum', enum: KidLevel, nullable: true })
   level: KidLevel;
+
+  @ManyToOne(() => Level, (level) => level.units, { nullable: true })
+  @JoinColumn({ name: 'levelId' })
+  levelEntity: Level;
+
+  @Column({ nullable: true })
+  levelId: string;
 
   @ApiProperty({ example: 0 })
   @Column({ default: 0 })

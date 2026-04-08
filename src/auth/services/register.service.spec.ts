@@ -7,7 +7,9 @@ import { KidService } from '../../kids/kid.service';
 import { UserRole } from '../../users/enums/user-role.enum';
 import { ClientAccountType } from '../../users/enums/client-account-type.enum';
 import { RegisterDto } from '../dto/register.dto';
-import { Gender, EnglishLevel, MotherTongueLevel } from '../../kids/kid.entity';
+import { Gender } from '../../kids/enums/kid-gender.enum';
+import { EnglishLevel } from '../../kids/enums/english-level.enum';
+import { MotherTongueLevel } from '../../kids/enums/mother-tongue-level.enum';
 
 describe('RegisterService', () => {
   let service: RegisterService;

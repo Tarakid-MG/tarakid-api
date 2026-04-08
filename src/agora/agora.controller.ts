@@ -1,6 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { AgoraService } from './agora.service';
 
+@ApiTags('Common - agora')
 @Controller('agora')
 export class AgoraController {
   constructor(private readonly agoraService: AgoraService) {}

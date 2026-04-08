@@ -46,8 +46,8 @@ export class FreeTrialBooking {
   })
   status: BookingStatus;
 
-  @Column({ nullable: true })
-  teacherId: number;
+  @Column({ type: 'int', nullable: true })
+  teacherId: number | null;
 
   @CreateDateColumn()
   createdAt: Date;

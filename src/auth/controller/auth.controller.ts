@@ -7,23 +7,23 @@ import {
   Req,
   Query,
 } from '@nestjs/common';
-import { GoogleAuthGuard } from './guards/google-auth.guard';
-import { UserRole } from '../users/enums/user-role.enum';
+import { GoogleAuthGuard } from '../guards/google-auth.guard';
+
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { RegisterService } from './services/register.service';
-import { LoginService } from './services/login.service';
-import { VerificationService } from './services/verification.service';
-import { ResetPasswordService } from './services/reset-password.service';
-import { GoogleAuthService } from './services/google-auth.service';
+import { RegisterDto } from '../dto/register.dto';
+import { LoginDto } from '../dto/login.dto';
+import { RegisterService } from '../services/register.service';
+import { LoginService } from '../services/login.service';
+import { VerificationService } from '../services/verification.service';
+import { ResetPasswordService } from '../services/reset-password.service';
+import { GoogleAuthService } from '../services/google-auth.service';
 import { User } from 'src/users/user.entity';
 
 interface RequestUser extends Request {
   user: User;
 }
 
-@ApiTags('Auth')
+@ApiTags('Common - Auth')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -93,18 +93,5 @@ export class AuthController {
   @ApiOperation({ summary: 'Google auth callback' })
   googleAuthRedirect(@Req() req: RequestUser) {
     return this.googleAuthService.handleGoogleLogin(req.user);
-  }
-
-  @Post('assign-role')
-  @ApiOperation({ summary: 'Assign role to user' })
-  assignRole(@Body() body: { userId: number; role: UserRole }) {
-    // This was in AuthService, but not explicitly moved to any of the new services yet.
-    // Given the "each functionality in one service" rule, maybe a UserService or update RegisterService.
-    // For now, I'll keep it here but it needs a home. I'll put it in RegisterService as it's user management.
-    // Actually, I'll just keep it here and use userRepo directly if needed, or better, move it to a service.
-    // Since I'm refactoring, let's just use the repo here or move it.
-    // For simplicity and following the rule, I'll add it to RegisterService for now or leave it for later.
-    // Actually, I'll move it to RegisterService.
-    return this.registerService.assignRole(body.userId, body.role);
   }
 }

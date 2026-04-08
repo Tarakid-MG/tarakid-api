@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Unit } from './entities/unit.entity';
 import { Lesson } from './entities/lesson.entity';
-import { KidLevel } from '../kids/kid.entity';
+import { KidLevel } from '../kids/enums/kid-level.enum';
+import { Level as LevelEntity } from './entities/level.entity';
+import { LevelRule } from './entities/level-rule.entity';
 import { Booking, BookingStatus } from '../bookings/entities/booking.entity';
 import {
   Subscription,
@@ -11,6 +13,8 @@ import {
 } from '../subscriptions/entities/subscription.entity';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { CreateUnitDto } from './dto/create-unit.dto';
+import { LessonType } from './enums/lesson-type.enum';
+import { MinioService } from '../minio/minio.service';
 import {
   FreeTrialBooking,
   BookingStatus as TrialBookingStatus,
@@ -29,6 +33,11 @@ export class LessonsService {
     private readonly subscriptionRepository: Repository<Subscription>,
     @InjectRepository(FreeTrialBooking)
     private readonly trialBookingRepository: Repository<FreeTrialBooking>,
+    @InjectRepository(LevelEntity)
+    private readonly levelRepository: Repository<LevelEntity>,
+    @InjectRepository(LevelRule)
+    private readonly levelRuleRepository: Repository<LevelRule>,
+    private readonly minioService: MinioService,
   ) {}
 
   async isKidEnrolled(kidId: string): Promise<boolean> {
@@ -154,6 +163,52 @@ export class LessonsService {
     return await this.lessonRepository.save(lesson);
   }
 
+  async deleteLesson(id: string): Promise<void> {
+    const lesson = await this.lessonRepository.findOneBy({ id });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    await this.lessonRepository.remove(lesson);
+  }
+
+  async uploadThumbnail(
+    id: string,
+    file: Express.Multer.File,
+  ): Promise<{ thumbnailUrl: string }> {
+    const lesson = await this.lessonRepository.findOneBy({ id });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    if (!process.env.MINIO_BUCKET_NAME_LESSONS_THUMBNAILS) {
+      throw new Error('MINIO_BUCKET_NAME_LESSONS_THUMBNAILS is not defined');
+    }
+
+    const bucketName = this.sanitizeBucketName(
+      process.env.MINIO_BUCKET_NAME_LESSONS_THUMBNAILS,
+    );
+    const fileName = `thumbnail-${Date.now()}.${file.originalname.split('.').pop()}`;
+
+    await this.minioService.uploadFile(
+      bucketName,
+      fileName,
+      file.buffer,
+      file.mimetype,
+    );
+
+    const url = await this.minioService.getFileUrl(bucketName, fileName);
+    lesson.thumbnailUrl = url;
+    await this.lessonRepository.save(lesson);
+
+    return { thumbnailUrl: url };
+  }
+
+  private sanitizeBucketName(name: string): string {
+    return (
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || 'lesson-thumbnail'
+    );
+  }
+
   async createLesson(createLessonDto: CreateLessonDto): Promise<Lesson> {
     const unit = await this.unitRepository.findOne({
       where: { id: createLessonDto.unitId },
@@ -192,8 +247,29 @@ export class LessonsService {
   }
 
   async createUnit(createUnitDto: CreateUnitDto): Promise<Unit> {
-    const unit = this.unitRepository.create(createUnitDto);
+    const { levelId, ...rest } = createUnitDto;
+    const unit = this.unitRepository.create(rest as Partial<Unit>);
+
+    if (levelId) {
+      const level = await this.levelRepository.findOne({
+        where: { id: levelId },
+      });
+      if (!level) throw new NotFoundException('Level not found');
+      unit.levelEntity = level;
+    }
+
     return await this.unitRepository.save(unit);
+  }
+
+  async updateUnit(id: string, dto: Partial<Unit>): Promise<Unit> {
+    const unit = await this.unitRepository.findOne({ where: { id } });
+    if (!unit) throw new NotFoundException('Unit not found');
+    Object.assign(unit, dto);
+    return await this.unitRepository.save(unit);
+  }
+
+  async deleteUnit(id: string): Promise<void> {
+    await this.unitRepository.delete(id);
   }
 
   async seedLevel(
@@ -225,7 +301,7 @@ export class LessonsService {
         const lessonIndex = i + 1;
         return this.lessonRepository.create({
           title: `Lesson ${lessonIndex}`,
-          type: 'genially',
+          type: LessonType.GENIALLY,
           content: '',
           order: lessonIndex,
           unit: savedUnit,
@@ -238,5 +314,56 @@ export class LessonsService {
     }
 
     return createdUnits;
+  }
+
+  // ─── Levels ──────────────────────────────────────────────────────────────────
+
+  async getLevels(): Promise<LevelEntity[]> {
+    return await this.levelRepository.find({ order: { order: 'ASC' } });
+  }
+
+  async createLevel(dto: Partial<LevelEntity>): Promise<LevelEntity> {
+    const level = this.levelRepository.create(dto);
+    return await this.levelRepository.save(level);
+  }
+
+  async updateLevel(
+    id: string,
+    dto: Partial<LevelEntity>,
+  ): Promise<LevelEntity> {
+    const level = await this.levelRepository.findOne({ where: { id } });
+    if (!level) throw new NotFoundException('Level not found');
+    Object.assign(level, dto);
+    const savedLevel = await this.levelRepository.save(level);
+    return savedLevel;
+  }
+
+  async deleteLevel(id: string): Promise<void> {
+    await this.levelRepository.delete(id);
+  }
+
+  // ─── Level Rules ─────────────────────────────────────────────────────────────
+
+  async getLevelRules(): Promise<LevelRule[]> {
+    return await this.levelRuleRepository.find({ order: { priority: 'ASC' } });
+  }
+
+  async createLevelRule(dto: Partial<LevelRule>): Promise<LevelRule> {
+    const rule = this.levelRuleRepository.create(dto);
+    return await this.levelRuleRepository.save(rule);
+  }
+
+  async updateLevelRule(
+    id: string,
+    dto: Partial<LevelRule>,
+  ): Promise<LevelRule> {
+    const rule = await this.levelRuleRepository.findOne({ where: { id } });
+    if (!rule) throw new NotFoundException('Rule not found');
+    Object.assign(rule, dto);
+    return await this.levelRuleRepository.save(rule);
+  }
+
+  async deleteLevelRule(id: string): Promise<void> {
+    await this.levelRuleRepository.delete(id);
   }
 }

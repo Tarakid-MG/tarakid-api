@@ -34,6 +34,9 @@ export class LoginService {
     const isValid = await bcrypt.compare(dto.password, user.password);
     if (!isValid) throw new UnauthorizedException('Identifiants invalides');
 
+    user.lastLogin = new Date();
+    await this.userRepo.save(user);
+
     return this.generateToken(user);
   }
 

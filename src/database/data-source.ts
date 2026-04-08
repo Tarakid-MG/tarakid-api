@@ -10,6 +10,8 @@ import { Unit } from '../lessons/entities/unit.entity';
 import { Lesson } from '../lessons/entities/lesson.entity';
 import { TeacherAvailability } from '../bookings/entities/teacher-availability.entity';
 import { TeacherBreak } from '../bookings/entities/teacher-break.entity';
+import { Level } from '../lessons/entities/level.entity';
+import { BookingAssignmentHistory } from '../bookings/entities/booking-assignment-history.entity';
 
 export const AppDataSource = new DataSource({
   type: 'mariadb',
@@ -29,6 +31,8 @@ export const AppDataSource = new DataSource({
     Lesson,
     TeacherAvailability,
     TeacherBreak,
+    Level,
+    BookingAssignmentHistory,
   ],
   migrations: [
     process.env.NODE_ENV === 'production'

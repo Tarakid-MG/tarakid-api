@@ -75,8 +75,8 @@ export class Booking {
   })
   status: BookingStatus;
 
-  @Column({ nullable: true })
-  teacherId: number; // For future teacher assignment
+  @Column({ type: 'int', nullable: true })
+  teacherId: number | null; // For future teacher assignment
 
   @CreateDateColumn()
   createdAt: Date;
