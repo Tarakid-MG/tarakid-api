@@ -54,4 +54,9 @@ export class UpdateKidDto {
   @IsOptional()
   @IsEnum(KidLevel)
   level?: KidLevel;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }

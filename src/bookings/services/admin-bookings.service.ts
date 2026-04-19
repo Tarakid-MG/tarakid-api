@@ -1,6 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, MoreThanOrEqual, Repository, FindOptionsWhere } from 'typeorm';
+import {
+  In,
+  MoreThanOrEqual,
+  Repository,
+  FindOptionsWhere,
+  IsNull,
+} from 'typeorm';
 import { Booking, BookingStatus } from '../entities/booking.entity';
 import {
   FreeTrialBooking,
@@ -28,42 +34,53 @@ export class AdminBookingsService {
   ) {}
 
   async getAllBookedSlots(): Promise<
-    { date: string; time: string; type: string; id: string | number }[]
+    {
+      date: string;
+      time: string;
+      type: string;
+      id: string | number;
+      kidName?: string;
+      planName?: string;
+      kidId?: string;
+      subscriptionId?: string;
+    }[]
   > {
-    const regularBookingsRaw = await this.bookingRepository
-      .createQueryBuilder('booking')
-      .select("DATE_FORMAT(booking.sessionDate, '%Y-%m-%d')", 'date')
-      .addSelect('booking.startTime', 'time')
-      .addSelect('booking.id', 'id')
-      .where('booking.status = :status', { status: BookingStatus.SCHEDULED })
-      .getRawMany();
+    const regularBookings = await this.bookingRepository.find({
+      where: { status: BookingStatus.SCHEDULED, teacherId: IsNull() },
+      relations: ['kid', 'subscription'],
+      order: { sessionDate: 'ASC', startTime: 'ASC' },
+    });
 
-    const trialBookingsRaw = await this.freeTrialBookingRepository
-      .createQueryBuilder('tb')
-      .leftJoinAndSelect('tb.session', 'session')
-      .select("DATE_FORMAT(session.date, '%Y-%m-%d')", 'date')
-      .addSelect('session.startTime', 'time')
-      .addSelect('tb.id', 'id')
-      .where('tb.status = :status', { status: TrialStatus.CONFIRMED })
-      .getRawMany();
+    const trialBookings = await this.freeTrialBookingRepository.find({
+      where: { status: TrialStatus.CONFIRMED, teacherId: IsNull() },
+      relations: ['session', 'kid'],
+    });
 
     const slots = [
-      ...(
-        regularBookingsRaw as { id: string; date: string; time: string }[]
-      ).map((b) => ({
+      ...regularBookings.map((b) => ({
         id: b.id,
-        date: String(b.date),
-        time: b.time.substring(0, 5),
+        date:
+          b.sessionDate instanceof Date
+            ? b.sessionDate.toISOString().split('T')[0]
+            : b.sessionDate,
+        time: b.startTime.substring(0, 5),
         type: 'REGULAR',
+        kidName: b.kid?.name,
+        planName: b.subscription?.planName,
+        kidId: b.kidId,
+        subscriptionId: b.subscriptionId,
       })),
-      ...(trialBookingsRaw as { id: number; date: string; time: string }[]).map(
-        (tb) => ({
+      ...trialBookings
+        .filter((tb) => tb.session)
+        .map((tb) => ({
           id: `trial_${tb.id}`,
-          date: String(tb.date),
-          time: tb.time.substring(0, 5),
+          date: tb.session.date,
+          time: tb.session.startTime.substring(0, 5),
           type: 'FREE_TRIAL',
-        }),
-      ),
+          kidName: tb.kid?.name,
+          planName: 'Essai Gratuit',
+          kidId: tb.kidId,
+        })),
     ];
 
     return slots.sort((a, b) => {
@@ -116,6 +133,7 @@ export class AdminBookingsService {
       if (!booking) throw new NotFoundException('Free trial booking not found');
       previousTeacherId = booking.teacherId;
       booking.teacherId = teacherId;
+      booking.status = TrialStatus.CONFIRMED;
       await this.freeTrialBookingRepository.save(booking);
     } else {
       const booking = await this.bookingRepository.findOne({
@@ -124,6 +142,7 @@ export class AdminBookingsService {
       if (!booking) throw new NotFoundException('Booking not found');
       previousTeacherId = booking.teacherId;
       booking.teacherId = teacherId;
+      booking.status = BookingStatus.SCHEDULED;
       await this.bookingRepository.save(booking);
     }
 
@@ -232,7 +251,7 @@ export class AdminBookingsService {
           teacherId: MoreThanOrEqual(1),
           status: BookingStatus.SCHEDULED,
         },
-        relations: ['kid'],
+        relations: ['kid', 'subscription'],
       }),
       this.freeTrialBookingRepository.find({
         where: {
@@ -274,6 +293,10 @@ export class AdminBookingsService {
         endTime: b.endTime,
         status: b.status,
         type: 'REGULAR',
+        kidName: b.kid?.name,
+        planName: b.subscription?.planName,
+        kidId: b.kidId,
+        subscriptionId: b.subscriptionId,
         teacher: {
           id: b.teacherId,
           firstName: teacher?.firstName || '',
@@ -331,7 +354,7 @@ export class AdminBookingsService {
             BookingStatus.DONE_BUT_MISSING,
           ]),
         },
-        relations: ['kid'],
+        relations: ['kid', 'subscription'],
       }),
       this.freeTrialBookingRepository.find({
         where: {
@@ -372,6 +395,10 @@ export class AdminBookingsService {
         endTime: b.endTime,
         status: b.status,
         type: 'REGULAR',
+        kidName: b.kid?.name,
+        planName: b.subscription?.planName,
+        kidId: b.kidId,
+        subscriptionId: b.subscriptionId,
         teacher: b.teacherId
           ? {
               id: b.teacherId,
@@ -453,12 +480,12 @@ export class AdminBookingsService {
             ),
           ),
         },
-        { teacherId },
+        { teacherId, status: TrialStatus.CONFIRMED },
       );
     } else {
       await this.bookingRepository.update(
         { id: In(bookingIds.map(String)) },
-        { teacherId },
+        { teacherId, status: BookingStatus.SCHEDULED },
       );
     }
   }
@@ -468,14 +495,21 @@ export class AdminBookingsService {
       this.bookingRepository.find({
         where: {
           teacherId,
-          status: BookingStatus.SCHEDULED,
+          status: In([
+            BookingStatus.SCHEDULED,
+            BookingStatus.COMPLETED,
+            BookingStatus.CANCELLED,
+            BookingStatus.MISSED,
+            BookingStatus.ABSENT,
+            BookingStatus.DONE_BUT_MISSING,
+          ]),
         },
         relations: ['kid'],
       }),
       this.freeTrialBookingRepository.find({
         where: {
           teacherId,
-          status: TrialStatus.CONFIRMED,
+          status: In([TrialStatus.CONFIRMED, TrialStatus.CANCELLED]),
         },
         relations: ['session', 'kid'],
       }),
@@ -532,9 +566,19 @@ export class AdminBookingsService {
     } else {
       const booking = await this.bookingRepository.findOne({
         where: { id: bookingId },
-        relations: ['kid', 'kid.user'],
+        relations: ['kid', 'kid.user', 'subscription'],
       });
       if (!booking) throw new NotFoundException('Booking not found');
+
+      const upcomingSessions = await this.bookingRepository.find({
+        where: {
+          kidId: booking.kidId,
+          subscriptionId: booking.subscriptionId,
+          status: BookingStatus.SCHEDULED,
+        },
+        order: { sessionDate: 'ASC', startTime: 'ASC' },
+      });
+
       return {
         id: booking.id,
         type: 'REGULAR',
@@ -543,6 +587,16 @@ export class AdminBookingsService {
         time: booking.startTime,
         kid: booking.kid,
         parent: booking.kid?.user,
+        subscription: booking.subscription,
+        upcomingSessions: upcomingSessions.map((s) => ({
+          id: s.id,
+          date:
+            s.sessionDate instanceof Date
+              ? s.sessionDate.toISOString().split('T')[0]
+              : s.sessionDate,
+          time: s.startTime.substring(0, 5),
+          teacherId: s.teacherId,
+        })),
       };
     }
   }

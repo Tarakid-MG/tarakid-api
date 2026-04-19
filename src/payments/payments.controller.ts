@@ -1,23 +1,13 @@
-import {
-  Controller,
-  Post,
-  Body,
-  UseGuards,
-  Req,
-  RawBodyRequest,
-  Headers,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Controller } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { Request } from 'express';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
+import { ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Client - Payments')
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  /*
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Post('create-checkout-session')
@@ -35,4 +25,5 @@ export class PaymentsController {
   async handleWebhook(@Req() req: RawBodyRequest<Request>) {
     return this.paymentsService.handleWebhook(req);
   }
+  */
 }

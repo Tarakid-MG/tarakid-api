@@ -59,11 +59,21 @@ export class Kid {
   @Column({ nullable: true })
   levelId: string;
 
+  @Column({ nullable: true })
+  assignedTeacherId: number;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'assignedTeacherId' })
+  assignedTeacher: User;
+
   @Column()
   learningDuration: string;
 
   @Column('simple-array')
   hobbies: string[];
+
+  @Column({ default: 0 })
+  stars: number;
 
   @Column({ type: 'text', nullable: true })
   avatarUrl?: string;

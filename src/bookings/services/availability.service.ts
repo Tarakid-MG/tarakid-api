@@ -166,12 +166,14 @@ export class AvailabilityService {
   }
 
   // importer dans le booking.controller
-  async getGlobalAvailability(): Promise<{
+  async getGlobalAvailability(teacherId?: number): Promise<{
     slotCapacities: Record<string, number>;
     bookings: Array<{ date: string; startTime: string; count: number }>;
   }> {
     // 1. Get recurring capacities
-    const recurringSlots = await this.teacherAvailabilityRepository.find();
+    const recurringSlots = await this.teacherAvailabilityRepository.find({
+      where: teacherId ? { teacherId } : {},
+    });
     const slotCapacities: Record<string, number> = {};
 
     recurringSlots.forEach((slot) => {
@@ -236,9 +238,12 @@ export class AvailabilityService {
   // importer dans le booking.controller
   async getAvailableDates(
     months = 2,
+    teacherId?: number,
   ): Promise<{ available: string[]; full: string[] }> {
     // 1. Get recurring capacities
-    const recurringSlots = await this.teacherAvailabilityRepository.find();
+    const recurringSlots = await this.teacherAvailabilityRepository.find({
+      where: teacherId ? { teacherId } : {},
+    });
     const recurringDows = new Set(recurringSlots.map((s) => s.dayOfWeek));
     const slotCapacities: Record<string, number> = {};
     recurringSlots.forEach((slot) => {

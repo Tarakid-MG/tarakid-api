@@ -71,6 +71,9 @@ export class User {
   @Column({ default: 10 })
   commitmentScore: number;
 
+  @Column({ default: 5 })
+  hearts: number;
+
   @Column({ default: 'average' })
   competenceLevel: string;
 

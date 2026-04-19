@@ -9,6 +9,12 @@ export class AgoraController {
 
   @Get('token')
   getToken(@Query('channel') channel: string, @Query('uid') uid: string) {
-    return this.agoraService.generateToken(channel, Number(uid));
+    const rtc = this.agoraService.generateToken(channel, Number(uid));
+    const rtm = this.agoraService.generateRtmToken(uid);
+
+    return {
+      rtc,
+      rtm,
+    };
   }
 }

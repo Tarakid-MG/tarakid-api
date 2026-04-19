@@ -88,4 +88,48 @@ export class FreeTrialController {
     }
     return this.freeTrialService.reportBooking(bookingId, userId);
   }
+
+  @Get(':id/classroom-status')
+  @ApiOperation({ summary: 'Get classroom status for a trial booking' })
+  async getClassroomStatus(@Param('id') id: string) {
+    return this.freeTrialService.getClassroomStatus(id);
+  }
+
+  @Patch(':id/waiting-status')
+  @ApiOperation({ summary: 'Update waiting status for a kid' })
+  async updateWaitingStatus(
+    @Param('id') id: string,
+    @Body('isKidWaiting') isKidWaiting: boolean,
+  ) {
+    return this.freeTrialService.updateClassroomStatus(id, { isKidWaiting });
+  }
+
+  @Patch(':id/acceptance-status')
+  @ApiOperation({ summary: 'Update acceptance status for a kid' })
+  async updateAcceptanceStatus(
+    @Param('id') id: string,
+    @Body('isKidAccepted') isKidAccepted: boolean,
+  ) {
+    return this.freeTrialService.updateClassroomStatus(id, { isKidAccepted });
+  }
+
+  @Patch(':id/interaction')
+  @ApiOperation({ summary: 'Update interaction data for a session' })
+  async updateInteraction(
+    @Param('id') id: string,
+    @Body('interactionData') interactionData: string,
+  ) {
+    return this.freeTrialService.updateInteractionData(id, interactionData);
+  }
+
+  @Patch(':id/presence')
+  @ApiOperation({ summary: 'Update teacher presence in class' })
+  async updatePresence(
+    @Param('id') id: string,
+    @Body('isTeacherInClass') isTeacherInClass: boolean,
+  ) {
+    return this.freeTrialService.updateClassroomStatus(id, {
+      isTeacherInClass,
+    });
+  }
 }

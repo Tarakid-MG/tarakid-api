@@ -84,14 +84,19 @@ export class LessonsService {
       where: { kidId, status: SubscriptionStatus.ACTIVE },
     });
 
+    const suggestedLesson = await this.getSuggestedLesson(kidId, level);
+
     if (activeSubscription) {
-      return units.map((unit) => ({
-        ...unit,
-        lessons: unit.lessons.map((lesson) => ({
-          ...lesson,
-          isLocked: false,
+      return {
+        units: units.map((unit) => ({
+          ...unit,
+          lessons: unit.lessons.map((lesson) => ({
+            ...lesson,
+            isLocked: false,
+          })),
         })),
-      }));
+        suggestedLessonId: suggestedLesson?.id || null,
+      };
     }
 
     // 2. Otherwise, unlock N lessons based on booking count
@@ -109,7 +114,7 @@ export class LessonsService {
     const totalBookingCount = regularBookingCount + trialBookingCount;
 
     let unlockedCount = 0;
-    return units.map((unit) => ({
+    const mappedUnits = units.map((unit) => ({
       ...unit,
       lessons: unit.lessons.map((lesson) => {
         const isLocked = unlockedCount >= totalBookingCount;
@@ -120,6 +125,99 @@ export class LessonsService {
         };
       }),
     }));
+
+    return {
+      units: mappedUnits,
+      suggestedLessonId: suggestedLesson?.id || null,
+    };
+  }
+
+  async getSuggestedLesson(
+    kidId: string,
+    level: KidLevel,
+  ): Promise<{ id: string; title: string; order: number } | null> {
+    try {
+      // 1. Get all lessons for this level
+      const units = await this.getUnitsByLevel(level);
+      const allLessons = units.flatMap((u) => u.lessons);
+
+      if (allLessons.length === 0) return null;
+
+      // 2. Check for assigned lesson in the NEXT upcoming session
+      // Regular
+      const nextRegular = await this.bookingRepository.findOne({
+        where: { kidId, status: BookingStatus.SCHEDULED },
+        order: { sessionDate: 'ASC', startTime: 'ASC' },
+        relations: ['lesson'],
+      });
+
+      // Trial
+      const nextTrial = await this.trialBookingRepository.findOne({
+        where: { kidId, status: TrialBookingStatus.CONFIRMED },
+        relations: ['session', 'lesson'],
+        // We can't order trial bookings easily by session date in findOne here without more joins,
+        // but typically there's only one active trial.
+      });
+
+      // Compare dates to find the EARLIEST upcoming session
+      let earliestNext: Booking | FreeTrialBooking | null = null;
+
+      if (nextRegular && nextTrial && nextTrial.session) {
+        const dateRegStr =
+          nextRegular.sessionDate instanceof Date
+            ? nextRegular.sessionDate.toISOString().split('T')[0]
+            : nextRegular.sessionDate;
+        const dateReg = new Date(`${dateRegStr}T${nextRegular.startTime}`);
+        const dateTrial = new Date(
+          `${nextTrial.session.date}T${nextTrial.session.startTime}`,
+        );
+        earliestNext = dateReg < dateTrial ? nextRegular : nextTrial;
+      } else {
+        earliestNext = nextRegular || nextTrial;
+      }
+
+      if (earliestNext && earliestNext.lessonId) {
+        const lesson = await this.lessonRepository.findOneBy({
+          id: earliestNext.lessonId,
+        });
+        if (lesson) {
+          return { id: lesson.id, title: lesson.title, order: lesson.order };
+        }
+      }
+
+      // 3. If no session assigned, find the first non-completed lesson
+      const [regularCompleted, trialCompleted] = await Promise.all([
+        this.bookingRepository.find({
+          where: { kidId, status: BookingStatus.COMPLETED },
+          select: ['lessonId'],
+        }),
+        this.trialBookingRepository.find({
+          where: { kidId, status: TrialBookingStatus.COMPLETED },
+          select: ['lessonId'],
+        }),
+      ]);
+
+      const completedLessonIds = new Set(
+        [...regularCompleted, ...trialCompleted]
+          .map((b) => b.lessonId)
+          .filter((id) => !!id),
+      );
+
+      const nextLesson = allLessons.find((l) => !completedLessonIds.has(l.id));
+
+      if (nextLesson) {
+        return {
+          id: nextLesson.id,
+          title: nextLesson.title,
+          order: nextLesson.order,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error calculating suggested lesson:', error);
+      return null;
+    }
   }
 
   async getLessonById(id: string): Promise<Lesson> {

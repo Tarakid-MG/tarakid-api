@@ -76,4 +76,77 @@ export class BookingsTeacherController {
   async getTeacherStats(@Req() req: AuthRequest): Promise<any> {
     return await this.teacherBookingsService.getTeacherStats(req.user.id);
   }
+
+  @Patch(':id/lesson')
+  @ApiOperation({ summary: 'Assign a lesson to a session' })
+  @ApiParam({ name: 'id', example: 'uuid-string', description: 'Booking ID' })
+  async assignLesson(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body('lessonId') lessonId: string,
+  ): Promise<any> {
+    return await this.teacherBookingsService.assignLessonToBooking(
+      req.user.id,
+      id,
+      lessonId,
+    );
+  }
+
+  @Patch(':id/cancel')
+  @ApiOperation({ summary: 'Cancel a session as a teacher' })
+  @ApiParam({ name: 'id', example: 'uuid-string', description: 'Booking ID' })
+  async cancelSession(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+  ): Promise<any> {
+    return await this.teacherBookingsService.cancelBooking(req.user.id, id);
+  }
+
+  @Get(':id/classroom-status')
+  @ApiOperation({ summary: 'Get classroom status for a booking' })
+  @ApiParam({ name: 'id', example: 'uuid', description: 'Booking ID' })
+  async getClassroomStatus(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+  ): Promise<Booking> {
+    // Both teacher and service can access this
+    return await this.teacherBookingsService.getClassroomStatus(id);
+  }
+
+  @Patch(':id/acceptance-status')
+  @ApiOperation({ summary: 'Accept kid into classroom' })
+  @ApiParam({ name: 'id', example: 'uuid', description: 'Booking ID' })
+  async updateAcceptanceStatus(
+    @Param('id') id: string,
+    @Body('isKidAccepted') isKidAccepted: boolean,
+  ): Promise<Booking> {
+    return await this.teacherBookingsService.updateClassroomStatus(id, {
+      isKidAccepted,
+    });
+  }
+
+  @Patch(':id/presence')
+  @ApiOperation({ summary: 'Update teacher presence in class' })
+  @ApiParam({ name: 'id', example: 'uuid', description: 'Booking ID' })
+  async updatePresence(
+    @Param('id') id: string,
+    @Body('isTeacherInClass') isTeacherInClass: boolean,
+  ): Promise<Booking> {
+    return await this.teacherBookingsService.updateClassroomStatus(id, {
+      isTeacherInClass,
+    });
+  }
+
+  @Patch(':id/interaction')
+  @ApiOperation({ summary: 'Update interaction data for a session' })
+  @ApiParam({ name: 'id', example: 'uuid', description: 'Booking ID' })
+  async updateInteraction(
+    @Param('id') id: string,
+    @Body('interactionData') interactionData: string,
+  ): Promise<Booking> {
+    return await this.teacherBookingsService.updateInteractionData(
+      id,
+      interactionData,
+    );
+  }
 }

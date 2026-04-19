@@ -9,7 +9,12 @@ async function bootstrap() {
   });
 
   app.enableCors({
-    origin: process.env.WEB_URL || 'http://localhost:5173',
+    origin: [
+      process.env.WEB_URL,
+      'http://localhost:5173',
+      'http://192.168.1.121:5173',
+      'https://192.168.1.121:5173',
+    ].filter((val): val is string => !!val),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });

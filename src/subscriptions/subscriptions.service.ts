@@ -46,8 +46,22 @@ export class SubscriptionsService {
       }
     }
 
-    // Calculate dates and credits
-    const startDate = new Date();
+    // Check for existing active subscription for this user/kid to "stack" dates
+    const existingActive = await this.subscriptionRepository.findOne({
+      where: {
+        userId,
+        kidId: createSubscriptionDto.kidId,
+        status: SubscriptionStatus.ACTIVE,
+      },
+      order: { endDate: 'DESC' },
+    });
+
+    const baseDate =
+      existingActive && existingActive.endDate > new Date()
+        ? new Date(existingActive.endDate)
+        : new Date();
+
+    const startDate = baseDate;
     const endDate = new Date(startDate);
     let totalCredits = createSubscriptionDto.creditsPerMonth;
 
@@ -78,10 +92,24 @@ export class SubscriptionsService {
       pricePerMonth: createSubscriptionDto.pricePerMonth,
       startDate,
       endDate,
-      status: SubscriptionStatus.PENDING_PAYMENT,
+      status: SubscriptionStatus.ACTIVE,
     });
 
-    return this.subscriptionRepository.save(subscription);
+    const savedSubscription =
+      await this.subscriptionRepository.save(subscription);
+
+    // Update user credits and plan
+    if (user) {
+      const oldCredits = user.credits || 0;
+      user.credits = oldCredits + totalCredits;
+      user.subscriptionPlan = createSubscriptionDto.planName;
+      console.log(
+        `[Subscription] Immediate activation for user ${user.id}: credits ${oldCredits} -> ${user.credits}`,
+      );
+      await this.userRepository.save(user);
+    }
+
+    return savedSubscription;
   }
 
   async activateSubscription(subscriptionId: string): Promise<Subscription> {

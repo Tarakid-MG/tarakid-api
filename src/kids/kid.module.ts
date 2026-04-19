@@ -5,9 +5,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Kid } from './kid.entity';
 import { LevelRule } from '../lessons/entities/level-rule.entity';
 import { Level } from '../lessons/entities/level.entity';
+import { KidLevelHistory } from './entities/kid-level-history.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Kid, LevelRule, Level])],
+  imports: [TypeOrmModule.forFeature([Kid, LevelRule, Level, KidLevelHistory])],
   providers: [KidService],
   controllers: [KidsController],
   exports: [KidService],

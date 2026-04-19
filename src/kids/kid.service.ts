@@ -11,6 +11,8 @@ import { CreateKidDto } from './dto/create-kid.dto';
 import { UpdateKidDto } from './dto/update-kid.dto';
 import { User } from '../users/user.entity';
 
+import { KidLevelHistory } from './entities/kid-level-history.entity';
+
 @Injectable()
 export class KidService {
   constructor(
@@ -20,6 +22,8 @@ export class KidService {
     private ruleRepo: Repository<LevelRule>,
     @InjectRepository(Level)
     private levelRepo: Repository<Level>,
+    @InjectRepository(KidLevelHistory)
+    private historyRepo: Repository<KidLevelHistory>,
   ) {}
 
   async calculateLevel(
@@ -99,7 +103,7 @@ export class KidService {
     return this.kidRepo.save(kid);
   }
 
-  async update(id: string, dto: UpdateKidDto): Promise<Kid> {
+  async update(id: string, dto: UpdateKidDto, performer?: User): Promise<Kid> {
     const kid = await this.findById(id);
 
     // Update basic info
@@ -121,21 +125,46 @@ export class KidService {
     if (dto.learningDuration) kid.learningDuration = dto.learningDuration;
     if (dto.hobbies) kid.hobbies = dto.hobbies;
 
-    // Recalculate level if any level-impacting fields changed
-    const newLevelCode = await this.calculateLevel(
-      kid.age,
-      kid.englishReadingLevel,
-      kid.englishSpeakingLevel,
-    );
+    // Recalculate level if any level-impacting fields changed OR use the override level from DTO
+    let newLevelCode = dto.level;
+    if (!newLevelCode) {
+      newLevelCode = await this.calculateLevel(
+        kid.age,
+        kid.englishReadingLevel,
+        kid.englishSpeakingLevel,
+      );
+    }
 
     if (String(kid.level) !== String(newLevelCode)) {
+      const oldLevel = kid.level;
       kid.level = newLevelCode;
       kid.levelEntity = (await this.levelRepo.findOne({
         where: { code: newLevelCode },
       })) as Level;
+
+      // Log history if level changed
+      if (performer) {
+        await this.historyRepo.save({
+          kidId: kid.id,
+          performerId: performer.id,
+          oldLevel,
+          newLevel: newLevelCode,
+          reason: dto.level
+            ? dto.reason || 'Aucun motif fourni'
+            : 'Replanification automatique (ex: âge/quiz)',
+        });
+      }
     }
 
     return this.kidRepo.save(kid);
+  }
+
+  async getLevelHistory(kidId: string): Promise<KidLevelHistory[]> {
+    return this.historyRepo.find({
+      where: { kidId },
+      relations: ['performer'],
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async updateAvatar(id: string, avatarUrl: string): Promise<Kid> {
@@ -147,5 +176,11 @@ export class KidService {
   async getLevel(id: string): Promise<KidLevel> {
     const kid = await this.findById(id);
     return kid.level;
+  }
+
+  async addStar(id: string): Promise<Kid> {
+    const kid = await this.findById(id);
+    kid.stars = (kid.stars || 0) + 1;
+    return this.kidRepo.save(kid);
   }
 }

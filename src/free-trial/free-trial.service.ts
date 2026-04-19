@@ -13,6 +13,9 @@ import {
 import { MailerService } from '../auth/services/mailer.service';
 import { User } from '../users/user.entity';
 import { AvailabilityService } from '../bookings/services/availability.service';
+import { NotificationService } from '../notifications/notification.service';
+import { NotificationType } from '../notifications/notification.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 
 @Injectable()
 export class FreeTrialService {
@@ -25,6 +28,7 @@ export class FreeTrialService {
     private userRepository: Repository<User>,
     private availabilityService: AvailabilityService,
     private mailerService: MailerService,
+    private notificationService: NotificationService,
   ) {}
 
   // Admin methods removed as they are no longer needed (do like in booking)
@@ -176,6 +180,43 @@ export class FreeTrialService {
       );
       await this.sessionRepository.save(booking.session);
     }
+
+    // Notify Admins
+    const type =
+      nextStatus === BookingStatus.CANCELLED
+        ? NotificationType.BOOKING_CANCELLED
+        : NotificationType.BOOKING_REPORTED;
+    const actionLabel =
+      nextStatus === BookingStatus.CANCELLED ? 'annulé' : 'reporté';
+
+    await this.notifyAdmins(
+      booking,
+      type,
+      `Cours d'essai ${actionLabel} - ${booking.id}`,
+      `L'élève a ${actionLabel} son cours d'essai du ${booking.session?.date} à ${booking.session?.startTime}.`,
+    );
+  }
+
+  private async notifyAdmins(
+    booking: FreeTrialBooking,
+    type: NotificationType,
+    title: string,
+    message: string,
+  ) {
+    const admins = await this.userRepository.find({
+      where: { role: UserRole.ADMIN },
+    });
+
+    const notifications = admins.map((admin) =>
+      this.notificationService.createNotification(admin.id, {
+        title,
+        message,
+        type,
+        metadata: { bookingId: booking.id, bookingType: 'FREE_TRIAL' },
+      }),
+    );
+
+    await Promise.all(notifications);
   }
 
   private async validateTrialEligibility(
@@ -299,5 +340,53 @@ export class FreeTrialService {
     const m = String(date.getMinutes()).padStart(2, '0');
 
     return `${h}:${m}`;
+  }
+
+  async updateClassroomStatus(
+    bookingId: string | number,
+    update: {
+      isKidWaiting?: boolean;
+      isKidAccepted?: boolean;
+      isTeacherInClass?: boolean;
+    },
+  ): Promise<FreeTrialBooking> {
+    const id =
+      typeof bookingId === 'string'
+        ? parseInt(bookingId.split('_').pop() || '', 10)
+        : bookingId;
+
+    const booking = await this.bookingRepository.findOne({ where: { id } });
+    if (!booking) throw new NotFoundException('Réservation non trouvée');
+
+    Object.assign(booking, update);
+    return this.bookingRepository.save(booking);
+  }
+
+  async getClassroomStatus(
+    bookingId: string | number,
+  ): Promise<FreeTrialBooking> {
+    const id =
+      typeof bookingId === 'string'
+        ? parseInt(bookingId.split('_').pop() || '', 10)
+        : bookingId;
+
+    const booking = await this.bookingRepository.findOne({
+      where: { id },
+      relations: ['session', 'kid', 'lesson'],
+    });
+    if (!booking) throw new NotFoundException('Réservation non trouvée');
+    return booking;
+  }
+
+  async updateInteractionData(
+    bookingId: string | number,
+    interactionData: string,
+  ): Promise<FreeTrialBooking> {
+    const id =
+      typeof bookingId === 'string'
+        ? parseInt(bookingId.split('_').pop() || '', 10)
+        : bookingId;
+    await this.bookingRepository.update(id, { interactionData });
+    return this.getClassroomStatus(id);
   }
 }

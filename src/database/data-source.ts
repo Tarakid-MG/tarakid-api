@@ -12,6 +12,8 @@ import { TeacherAvailability } from '../bookings/entities/teacher-availability.e
 import { TeacherBreak } from '../bookings/entities/teacher-break.entity';
 import { Level } from '../lessons/entities/level.entity';
 import { BookingAssignmentHistory } from '../bookings/entities/booking-assignment-history.entity';
+import { Notification } from '../notifications/notification.entity';
+import { KidLevelHistory } from '../kids/entities/kid-level-history.entity';
 
 export const AppDataSource = new DataSource({
   type: 'mariadb',
@@ -23,6 +25,7 @@ export const AppDataSource = new DataSource({
   entities: [
     User,
     Kid,
+    KidLevelHistory,
     FreeTrialSession,
     FreeTrialBooking,
     Subscription,
@@ -33,6 +36,7 @@ export const AppDataSource = new DataSource({
     TeacherBreak,
     Level,
     BookingAssignmentHistory,
+    Notification,
   ],
   migrations: [
     process.env.NODE_ENV === 'production'

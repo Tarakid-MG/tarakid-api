@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { RtcTokenBuilder, RtcRole } from 'agora-access-token';
+import {
+  RtcTokenBuilder,
+  RtcRole,
+  RtmTokenBuilder,
+  RtmRole,
+} from 'agora-access-token';
 
 @Injectable()
 export class AgoraService {
@@ -26,6 +31,28 @@ export class AgoraService {
       token,
       appId,
       channel: channelName,
+      uid,
+    };
+  }
+
+  generateRtmToken(uid: string) {
+    const appId = process.env.AGORA_APP_ID!;
+    const appCertificate = process.env.AGORA_APP_CERTIFICATE!;
+    const expirationTimeInSeconds = 3600;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+    const token = RtmTokenBuilder.buildToken(
+      appId,
+      appCertificate,
+      uid,
+      RtmRole.Rtm_User,
+      privilegeExpiredTs,
+    );
+
+    return {
+      token,
+      appId,
       uid,
     };
   }

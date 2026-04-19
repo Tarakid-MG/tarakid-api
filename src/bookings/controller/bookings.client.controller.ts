@@ -112,4 +112,35 @@ export class BookingsClientController {
   ): Promise<Booking> {
     return await this.bookingsService.reportBooking(id, req.user.id);
   }
+
+  @Get(':id/classroom-status')
+  @ApiOperation({ summary: 'Get classroom status for a booking' })
+  @ApiParam({ name: 'id', example: 'uuid', description: 'Booking ID' })
+  async getClassroomStatus(@Param('id') id: string): Promise<Booking> {
+    return await this.bookingsService.getClassroomStatus(id);
+  }
+  @Patch(':id/waiting-status')
+  @ApiOperation({ summary: 'Update waiting status for a kid' })
+  @ApiParam({ name: 'id', example: 'uuid', description: 'Booking ID' })
+  async updateWaitingStatus(
+    @Param('id') id: string,
+    @Body('isKidWaiting') isKidWaiting: boolean,
+  ): Promise<Booking> {
+    return await this.bookingsService.updateClassroomStatus(id, {
+      isKidWaiting,
+    });
+  }
+
+  @Patch(':id/interaction')
+  @ApiOperation({ summary: 'Update interaction data for a session' })
+  @ApiParam({ name: 'id', example: 'uuid', description: 'Booking ID' })
+  async updateInteraction(
+    @Param('id') id: string,
+    @Body('interactionData') interactionData: string,
+  ): Promise<Booking> {
+    return await this.bookingsService.updateInteractionData(
+      id,
+      interactionData,
+    );
+  }
 }

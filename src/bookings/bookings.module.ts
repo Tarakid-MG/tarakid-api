@@ -22,6 +22,8 @@ import { ConfigModule } from '@nestjs/config';
 import { FreeTrialBooking } from '../free-trial/entities/free-trial-booking.entity';
 
 import { BookingAssignmentHistory } from './entities/booking-assignment-history.entity';
+import { NotificationModule } from '../notifications/notification.module';
+import { LessonsModule } from '../lessons/lessons.module';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { BookingAssignmentHistory } from './entities/booking-assignment-history.
     ]),
     SubscriptionsModule,
     ConfigModule,
+    NotificationModule,
+    LessonsModule,
   ],
   controllers: [
     BookingsController,

@@ -56,10 +56,17 @@ export class KidsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update a kid profile' })
   async update(
+    @Req() req: RequestWithUser,
     @Param('id') id: string,
     @Body() dto: UpdateKidDto,
   ): Promise<Kid> {
-    return this.kidService.update(id, dto);
+    return this.kidService.update(id, dto, req.user);
+  }
+
+  @Get(':id/level-history')
+  @ApiOperation({ summary: "Get a kid's level history" })
+  async getLevelHistory(@Param('id') id: string) {
+    return this.kidService.getLevelHistory(id);
   }
 
   @Get(':id/level')
@@ -101,5 +108,11 @@ export class KidsController {
     );
     const avatarUrl = await this.minioService.getFileUrl(bucketName, fileName);
     return await this.kidService.updateAvatar(id, avatarUrl);
+  }
+
+  @Patch(':id/add-star')
+  @ApiOperation({ summary: 'Add a star to a kid' })
+  async addStar(@Param('id') id: string): Promise<Kid> {
+    return this.kidService.addStar(id);
   }
 }

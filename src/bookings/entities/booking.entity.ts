@@ -11,6 +11,7 @@ import { User } from '../../users/user.entity';
 import { Kid } from '../../kids/kid.entity';
 import { Subscription } from '../../subscriptions/entities/subscription.entity';
 import { RecurrencePattern } from '../interfaces/recurrence-pattern.interface';
+import { Lesson } from '../../lessons/entities/lesson.entity';
 
 export enum BookingStatus {
   SCHEDULED = 'SCHEDULED',
@@ -78,9 +79,28 @@ export class Booking {
   @Column({ type: 'int', nullable: true })
   teacherId: number | null; // For future teacher assignment
 
+  @ManyToOne(() => Lesson, { nullable: true })
+  @JoinColumn({ name: 'lessonId' })
+  lesson: Lesson;
+
+  @Column({ nullable: true })
+  lessonId: string;
+
+  @Column({ default: false })
+  isKidWaiting: boolean;
+
+  @Column({ default: false })
+  isKidAccepted: boolean;
+
+  @Column({ default: false })
+  isTeacherInClass: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'text', nullable: true })
+  interactionData: string;
 }

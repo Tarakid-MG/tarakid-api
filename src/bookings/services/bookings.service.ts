@@ -14,6 +14,10 @@ import { Kid } from '../../kids/kid.entity';
 import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import { CreateBookingDto } from '../dto/create-booking.dto';
 import { AvailabilityService } from './availability.service';
+import { NotificationService } from '../../notifications/notification.service';
+import { NotificationType } from '../../notifications/notification.entity';
+import { User } from '../../users/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 
 @Injectable()
 export class BookingsService {
@@ -24,8 +28,11 @@ export class BookingsService {
     private subscriptionRepository: Repository<Subscription>,
     @InjectRepository(Kid)
     private kidRepository: Repository<Kid>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     private subscriptionsService: SubscriptionsService,
     private availabilityService: AvailabilityService,
+    private notificationService: NotificationService,
   ) {}
 
   async create(
@@ -120,7 +127,7 @@ export class BookingsService {
       if (sessionDate < start || sessionDate > end) {
         throw new BadRequestException(
           `La date ${slot.sessionDate} est en dehors de la période de validité de votre abonnement ` +
-            `(${start.toLocaleDateString()} au ${end.toLocaleDateString()}).`,
+            `(${new Date(start).toLocaleDateString()} au ${new Date(end).toLocaleDateString()}).`,
         );
       }
     }
@@ -147,7 +154,9 @@ export class BookingsService {
 
       if (existingCount + countInRequest > subscription.frequency) {
         throw new BadRequestException(
-          `Limite hebdomadaire dépassée pour la semaine du ${weekRange.start.toLocaleDateString()}. ` +
+          `Limite hebdomadaire dépassée pour la semaine du ${new Date(
+            weekRange.start,
+          ).toLocaleDateString()}. ` +
             `Votre plan autorise ${subscription.frequency} cours par semaine.`,
         );
       }
@@ -329,7 +338,19 @@ export class BookingsService {
       booking.status = BookingStatus.DONE_BUT_MISSING;
     }
 
-    return await this.bookingRepository.save(booking);
+    const savedBooking = await this.bookingRepository.save(booking);
+
+    // Notify Admins and Teacher
+    await this.notifyAdminsAndTeacher(
+      savedBooking,
+      NotificationType.BOOKING_CANCELLED,
+      `Cours annulé - ${savedBooking.id}`,
+      `L'élève a annulé son cours du ${new Date(
+        savedBooking.sessionDate,
+      ).toLocaleDateString()} à ${savedBooking.startTime}.`,
+    );
+
+    return savedBooking;
   }
 
   async reportBooking(id: string, userId: number): Promise<Booking> {
@@ -367,6 +388,86 @@ export class BookingsService {
       booking.status = BookingStatus.DONE_BUT_MISSING;
     }
 
-    return await this.bookingRepository.save(booking);
+    const savedBooking = await this.bookingRepository.save(booking);
+
+    // Notify Admins and Teacher
+    await this.notifyAdminsAndTeacher(
+      savedBooking,
+      NotificationType.BOOKING_REPORTED,
+      `Cours reporté - ${savedBooking.id}`,
+      `L'élève a reporté son cours du ${new Date(
+        savedBooking.sessionDate,
+      ).toLocaleDateString()} à ${savedBooking.startTime}.`,
+    );
+
+    return savedBooking;
+  }
+
+  private async notifyAdminsAndTeacher(
+    booking: Booking,
+    type: NotificationType,
+    title: string,
+    message: string,
+  ) {
+    const admins = await this.userRepository.find({
+      where: { role: UserRole.ADMIN },
+    });
+
+    const notifications = admins.map((admin) =>
+      this.notificationService.createNotification(admin.id, {
+        title,
+        message,
+        type,
+        metadata: { bookingId: booking.id, bookingType: 'REGULAR' },
+      }),
+    );
+
+    if (booking.teacherId) {
+      notifications.push(
+        this.notificationService.createNotification(booking.teacherId, {
+          title,
+          message,
+          type,
+          metadata: { bookingId: booking.id, bookingType: 'REGULAR' },
+        }),
+      );
+    }
+
+    await Promise.all(notifications);
+  }
+
+  async updateClassroomStatus(
+    bookingId: string,
+    update: {
+      isKidWaiting?: boolean;
+      isKidAccepted?: boolean;
+      isTeacherInClass?: boolean;
+    },
+  ): Promise<Booking> {
+    const id = bookingId.split('_').pop() || '';
+    const booking = await this.bookingRepository.findOne({ where: { id } });
+    if (!booking) throw new NotFoundException('Réservation non trouvée');
+
+    Object.assign(booking, update);
+    return this.bookingRepository.save(booking);
+  }
+
+  async getClassroomStatus(bookingId: string): Promise<Booking> {
+    const id = bookingId.split('_').pop() || '';
+    const booking = await this.bookingRepository.findOne({
+      where: { id },
+      relations: ['kid', 'lesson'],
+    });
+    if (!booking) throw new NotFoundException('Réservation non trouvée');
+    return booking;
+  }
+
+  async updateInteractionData(
+    bookingId: string,
+    interactionData: string,
+  ): Promise<Booking> {
+    const id = bookingId.split('_').pop() || '';
+    await this.bookingRepository.update(id, { interactionData });
+    return this.getClassroomStatus(id);
   }
 }

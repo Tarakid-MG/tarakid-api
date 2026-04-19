@@ -17,8 +17,13 @@ export class BookingsController {
 
   @Get('availability')
   @ApiOperation({ summary: 'Get global teacher availability matrix' })
-  async getGlobalAvailability(): Promise<any> {
-    return await this.availabilityService.getGlobalAvailability();
+  @ApiQuery({ name: 'teacherId', required: false, type: Number })
+  async getGlobalAvailability(
+    @Query('teacherId') teacherId?: number,
+  ): Promise<any> {
+    return await this.availabilityService.getGlobalAvailability(
+      teacherId ? Number(teacherId) : undefined,
+    );
   }
 
   @Get('available-dates')
@@ -34,9 +39,11 @@ export class BookingsController {
   })
   async getAvailableDates(
     @Query('months') months?: number,
+    @Query('teacherId') teacherId?: number,
   ): Promise<{ available: string[]; full: string[] }> {
     return await this.availabilityService.getAvailableDates(
       months ? Number(months) : 2,
+      teacherId ? Number(teacherId) : undefined,
     );
   }
 }
