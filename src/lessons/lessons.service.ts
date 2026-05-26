@@ -231,6 +231,22 @@ export class LessonsService {
     return lesson;
   }
 
+  async getRevisionAssets(bucketName: string) {
+    const sanitizedBucketName = this.sanitizeBucketName(bucketName);
+    const objectKeys = (await this.minioService.listObjects(sanitizedBucketName))
+      .filter((key) => /\.(png|jpe?g|webp|gif|svg)$/i.test(key));
+
+    const assets = await Promise.all(
+      objectKeys.map(async (key) => ({
+        key,
+        name: key.split('/').pop() || key,
+        url: await this.minioService.getFileUrl(sanitizedBucketName, key),
+      })),
+    );
+
+    return assets;
+  }
+
   async updateLesson(
     id: string,
     updateDto: Partial<{

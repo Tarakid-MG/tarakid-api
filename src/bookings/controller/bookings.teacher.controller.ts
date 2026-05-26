@@ -71,6 +71,14 @@ export class BookingsTeacherController {
     return await this.teacherBookingsService.findTeacherUpcoming(req.user.id);
   }
 
+  @Get('calendar')
+  @ApiOperation({ summary: 'Get teacher calendar sessions including past classes' })
+  async getTeacherCalendar(@Req() req: AuthRequest): Promise<any[]> {
+    return await this.teacherBookingsService.findTeacherCalendarSessions(
+      req.user.id,
+    );
+  }
+
   @Get('stats')
   @ApiOperation({ summary: 'Get performance and earnings stats for teacher' })
   async getTeacherStats(@Req() req: AuthRequest): Promise<any> {

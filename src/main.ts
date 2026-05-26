@@ -12,6 +12,7 @@ async function bootstrap() {
     origin: [
       process.env.WEB_URL,
       'http://localhost:5173',
+      'https://localhost:5173',
       'http://192.168.1.121:5173',
       'https://192.168.1.121:5173',
     ].filter((val): val is string => !!val),

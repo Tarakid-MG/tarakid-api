@@ -65,10 +65,10 @@ export class MinioService {
     }
   }
 
-  async listObjects(bucketName: string) {
+  async listObjects(bucketName: string, prefix = '') {
     try {
       const objects: string[] = [];
-      const stream = this.minioClient.listObjectsV2(bucketName, '', true);
+      const stream = this.minioClient.listObjectsV2(bucketName, prefix, true);
 
       return new Promise<string[]>((resolve, reject) => {
         stream.on('data', (obj) => {
@@ -78,8 +78,10 @@ export class MinioService {
         stream.on('end', () => {
           // Sort items numerically if possible (e.g., 1.png, 2.png)
           objects.sort((a, b) => {
-            const numA = parseInt(a.split('.')[0]);
-            const numB = parseInt(b.split('.')[0]);
+            const baseA = a.split('/').pop() || a;
+            const baseB = b.split('/').pop() || b;
+            const numA = parseInt(baseA.split('.')[0], 10);
+            const numB = parseInt(baseB.split('.')[0], 10);
             if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
             return a.localeCompare(b);
           });

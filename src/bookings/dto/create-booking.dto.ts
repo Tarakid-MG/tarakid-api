@@ -5,6 +5,7 @@ import {
   IsString,
   IsBoolean,
   IsOptional,
+  IsInt,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -46,4 +47,10 @@ export class CreateBookingDto {
   @ValidateNested({ each: true })
   @Type(() => BookingSlotDto)
   bookings: BookingSlotDto[];
+
+  @ApiProperty({ required: false, example: 42 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  teacherId?: number;
 }

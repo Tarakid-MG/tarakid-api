@@ -181,7 +181,7 @@ export class FreeTrialService {
       await this.sessionRepository.save(booking.session);
     }
 
-    // Notify Admins
+    // Notify Admins and assigned teacher
     const type =
       nextStatus === BookingStatus.CANCELLED
         ? NotificationType.BOOKING_CANCELLED
@@ -189,7 +189,7 @@ export class FreeTrialService {
     const actionLabel =
       nextStatus === BookingStatus.CANCELLED ? 'annulé' : 'reporté';
 
-    await this.notifyAdmins(
+    await this.notifyAdminsAndTeacher(
       booking,
       type,
       `Cours d'essai ${actionLabel} - ${booking.id}`,
@@ -197,7 +197,7 @@ export class FreeTrialService {
     );
   }
 
-  private async notifyAdmins(
+  private async notifyAdminsAndTeacher(
     booking: FreeTrialBooking,
     type: NotificationType,
     title: string,
@@ -215,6 +215,17 @@ export class FreeTrialService {
         metadata: { bookingId: booking.id, bookingType: 'FREE_TRIAL' },
       }),
     );
+
+    if (booking.teacherId) {
+      notifications.push(
+        this.notificationService.createNotification(booking.teacherId, {
+          title,
+          message,
+          type,
+          metadata: { bookingId: booking.id, bookingType: 'FREE_TRIAL' },
+        }),
+      );
+    }
 
     await Promise.all(notifications);
   }

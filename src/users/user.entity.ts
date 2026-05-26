@@ -128,6 +128,27 @@ export class User {
   @Column({ default: false })
   isOnline: boolean;
 
+  @Column({ type: 'text', nullable: true })
+  about?: string;
+
+  @Column({ type: 'int', nullable: true })
+  experienceYears?: number;
+
+  @Column({ type: 'json', nullable: true })
+  languages?: { name: string; level: string }[];
+
+  @Column({ type: 'simple-array', nullable: true })
+  specialties?: string[];
+
+  @Column({ type: 'text', nullable: true })
+  teachingStyle?: string;
+
+  @Column({ type: 'text', nullable: true })
+  education?: string;
+
+  @Column({ type: 'simple-array', nullable: true })
+  certifications?: string[];
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -18,6 +18,7 @@ import { SetAvailabilityDto } from '../dto/set-availability.dto';
 import { SetBreakDto } from '../dto/set-break.dto';
 import { LessonsService } from '../../lessons/lessons.service';
 import { KidLevel } from '../../kids/enums/kid-level.enum';
+import { Feedback, FeedbackRating } from '../../feedback/entities/feedback.entity';
 
 interface FormattedSession {
   id: string;
@@ -30,6 +31,8 @@ interface FormattedSession {
   lesson: { id: string; title: string; order: number } | null;
   suggestedLesson?: { id: string; title: string; order: number } | null;
   isTeacherInClass: boolean;
+  isKidWaiting: boolean;
+  interactionData?: string | null;
 }
 
 @Injectable()
@@ -45,10 +48,48 @@ export class TeacherBookingsService {
     private freeTrialBookingRepository: Repository<FreeTrialBooking>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Feedback)
+    private feedbackRepository: Repository<Feedback>,
     private readonly lessonsService: LessonsService,
   ) {}
 
   async findTeacherUpcoming(teacherId: number): Promise<any[]> {
+    const allSessions = await this.getFormattedTeacherSessions(teacherId);
+    const now = new Date();
+    const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+    return allSessions
+      .filter((session) => {
+        if (
+          session.status === BookingStatus.CANCELLED ||
+          session.status === TrialStatus.CANCELLED
+        ) {
+          return false;
+        }
+        const start = this.toSessionDate(session.sessionDate, session.startTime);
+        const end = this.toSessionDate(session.sessionDate, session.endTime);
+        return end >= now && start <= in48Hours;
+      })
+      .sort((a, b) => {
+        const dtA = this.toSessionDate(a.sessionDate, a.startTime).getTime();
+        const dtB = this.toSessionDate(b.sessionDate, b.startTime).getTime();
+        return dtA - dtB;
+      });
+  }
+
+  async findTeacherCalendarSessions(teacherId: number): Promise<any[]> {
+    const allSessions = await this.getFormattedTeacherSessions(teacherId);
+
+    return allSessions.sort((a, b) => {
+      const dtA = this.toSessionDate(a.sessionDate, a.startTime).getTime();
+      const dtB = this.toSessionDate(b.sessionDate, b.startTime).getTime();
+      return dtA - dtB;
+    });
+  }
+
+  private async getFormattedTeacherSessions(
+    teacherId: number,
+  ): Promise<FormattedSession[]> {
     const [regularBookings, trialBookings] = await Promise.all([
       this.bookingRepository.find({
         where: {
@@ -60,6 +101,7 @@ export class TeacherBookingsService {
             BookingStatus.MISSED,
             BookingStatus.ABSENT,
             BookingStatus.DONE_BUT_MISSING,
+            BookingStatus.REPORTED,
           ]),
         },
         relations: ['kid', 'lesson'],
@@ -67,7 +109,12 @@ export class TeacherBookingsService {
       this.freeTrialBookingRepository.find({
         where: {
           teacherId,
-          status: In([TrialStatus.CONFIRMED, TrialStatus.CANCELLED]),
+          status: In([
+            TrialStatus.CONFIRMED,
+            TrialStatus.CANCELLED,
+            TrialStatus.COMPLETED,
+            TrialStatus.REPORTED,
+          ]),
         },
         relations: ['session', 'kid', 'lesson'],
       }),
@@ -104,6 +151,8 @@ export class TeacherBookingsService {
             }
           : null,
         isTeacherInClass: b.isTeacherInClass,
+        isKidWaiting: b.isKidWaiting,
+        interactionData: b.interactionData,
       };
     });
 
@@ -132,6 +181,8 @@ export class TeacherBookingsService {
             }
           : null,
         isTeacherInClass: tb.isTeacherInClass,
+        isKidWaiting: tb.isKidWaiting,
+        interactionData: tb.interactionData,
       }));
 
     const allSessions: FormattedSession[] = [
@@ -149,11 +200,7 @@ export class TeacherBookingsService {
       }
     }
 
-    return allSessions.sort((a, b) => {
-      const dtA = new Date(`${a.sessionDate}T${a.startTime}`).getTime();
-      const dtB = new Date(`${b.sessionDate}T${b.startTime}`).getTime();
-      return dtA - dtB;
-    });
+    return allSessions;
   }
 
   async getTeacherStats(teacherId: number): Promise<TeacherStats> {
@@ -163,55 +210,122 @@ export class TeacherBookingsService {
 
     if (!teacher) throw new NotFoundException('Enseignant non trouvé');
 
-    const commitmentScore = Number(teacher.commitmentScore) || 10;
-    const currentCompetence =
-      (String(teacher.competenceLevel || 'average') as
-        | 'poor'
-        | 'belowAverage'
-        | 'average'
-        | 'good'
-        | 'competent') || 'average';
+    const [regularBookings, trialBookings, feedbackRows] = await Promise.all([
+      this.bookingRepository.find({ where: { teacherId } }),
+      this.freeTrialBookingRepository.find({
+        where: { teacherId },
+        relations: ['session'],
+      }),
+      this.feedbackRepository
+        .createQueryBuilder('feedback')
+        .innerJoin('feedback.booking', 'booking')
+        .where('booking.teacherId = :teacherId', { teacherId })
+        .getMany(),
+    ]);
 
-    const competences = {
-      poor: 20,
-      belowAverage: 20,
-      average: 20,
-      good: 20,
-      competent: 20,
+    const now = new Date();
+    const isRegularFinished = (booking: Booking) => {
+      if (booking.status === BookingStatus.COMPLETED) return true;
+      if (booking.status !== BookingStatus.SCHEDULED) return false;
+      return this.toSessionDate(booking.sessionDate, booking.endTime) < now;
+    };
+    const isTrialFinished = (booking: FreeTrialBooking) => {
+      if (booking.status === TrialStatus.COMPLETED) return true;
+      if (booking.status !== TrialStatus.CONFIRMED || !booking.session) {
+        return false;
+      }
+      return this.toSessionDate(booking.session.date, booking.session.endTime) < now;
     };
 
-    const completedCount = await this.bookingRepository.count({
-      where: { teacherId, status: BookingStatus.COMPLETED },
-    });
+    const finishedCourses =
+      regularBookings.filter(isRegularFinished).length +
+      trialBookings.filter(isTrialFinished).length;
+    const canceledCourses =
+      regularBookings.filter((b) => b.status === BookingStatus.CANCELLED).length +
+      trialBookings.filter((b) => b.status === TrialStatus.CANCELLED).length;
+    const lateCourses = regularBookings.filter((b) =>
+      [
+        BookingStatus.MISSED,
+        BookingStatus.ABSENT,
+        BookingStatus.DONE_BUT_MISSING,
+      ].includes(b.status),
+    ).length;
+
+    const thumbsUp = feedbackRows.filter(
+      (feedback) => feedback.rating === FeedbackRating.LIKE,
+    ).length;
+    const thumbsDown = feedbackRows.filter(
+      (feedback) => feedback.rating === FeedbackRating.DISLIKE,
+    ).length;
+
+    const scoredCourses = finishedCourses + canceledCourses + lateCourses;
+    const completionQuality =
+      scoredCourses > 0 ? finishedCourses / scoredCourses : 1;
+    const feedbackTotal = thumbsUp + thumbsDown;
+    const feedbackQuality = feedbackTotal > 0 ? thumbsUp / feedbackTotal : 1;
+    const competenceScore = Math.round(
+      (completionQuality * 0.65 + feedbackQuality * 0.35) * 100,
+    );
+    const currentCompetence = this.getCompetenceLevel(competenceScore);
+    const hearts = Math.max(0, Math.min(5, Number(teacher.hearts ?? 5)));
+    const commitmentScore = hearts * 2;
+
+    const competences = {
+      poor: currentCompetence === 'poor' ? competenceScore : 0,
+      belowAverage: currentCompetence === 'belowAverage' ? competenceScore : 0,
+      average: currentCompetence === 'average' ? competenceScore : 0,
+      good: currentCompetence === 'good' ? competenceScore : 0,
+      competent: currentCompetence === 'competent' ? competenceScore : 0,
+    };
 
     const earnings = {
-      total: completedCount * 5000,
+      total: finishedCourses * 5000,
       currency: 'Ar',
       ratePerClass: 5000,
     };
 
     const performance = {
-      finishedCourses: Number(teacher.finishedCourses || 0),
-      canceledCourses: Number(teacher.canceledCourses || 0),
-      lateCourses: Number(teacher.lateCourses || 0),
-      thumbsUp: Number(teacher.thumbsUp || 0),
-      thumbsDown: Number(teacher.thumbsDown || 0),
+      finishedCourses,
+      canceledCourses,
+      lateCourses,
+      thumbsUp,
+      thumbsDown,
       stars: {
-        5: Number(teacher.star5 || 0),
-        4: Number(teacher.star4 || 0),
-        3: Number(teacher.star3 || 0),
-        2: Number(teacher.star2 || 0),
-        1: Number(teacher.star1 || 0),
+        5: thumbsUp,
+        4: 0,
+        3: 0,
+        2: 0,
+        1: thumbsDown,
       },
     };
 
     return {
       commitmentScore,
+      hearts,
+      maxHearts: 5,
       currentCompetence,
       competences,
       earnings,
       performance,
     };
+  }
+
+  private toSessionDate(date: Date | string, time: string): Date {
+    const datePart =
+      date instanceof Date
+        ? date.toISOString().split('T')[0]
+        : String(date).split('T')[0];
+    return new Date(`${datePart}T${String(time).substring(0, 5)}:00`);
+  }
+
+  private getCompetenceLevel(
+    score: number,
+  ): 'poor' | 'belowAverage' | 'average' | 'good' | 'competent' {
+    if (score < 40) return 'poor';
+    if (score < 55) return 'belowAverage';
+    if (score < 70) return 'average';
+    if (score < 85) return 'good';
+    return 'competent';
   }
 
   async getTeacherAvailability(

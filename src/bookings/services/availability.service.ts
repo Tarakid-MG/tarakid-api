@@ -93,6 +93,66 @@ export class AvailabilityService {
     return effectiveCapacity > regularCount + trialCount;
   }
 
+  async isTeacherSlotAvailable(
+    date: string,
+    startTime: string,
+    teacherId: number,
+  ): Promise<boolean> {
+    const dayOfWeek = new Date(date).getDay();
+    const time = startTime.substring(0, 5);
+
+    const recurringSlot = await this.teacherAvailabilityRepository.findOne({
+      where: {
+        teacherId,
+        dayOfWeek,
+        startTime: Between(`${time}:00`, `${time}:59`),
+      },
+    });
+
+    if (!recurringSlot) return false;
+
+    const teacherBreak = await this.teacherBreakRepository.findOne({
+      where: {
+        teacherId,
+        startDate: LessThanOrEqual(date),
+        endDate: MoreThanOrEqual(date),
+      },
+    });
+
+    if (teacherBreak) return false;
+
+    const [regularCount, trialBookings] = await Promise.all([
+      this.bookingRepository.count({
+        where: {
+          teacherId,
+          sessionDate: date as unknown as Date,
+          startTime: Between(`${time}:00`, `${time}:59`),
+          status: BookingStatus.SCHEDULED,
+        },
+      }),
+      this.freeTrialBookingRepository.find({
+        where: {
+          teacherId,
+          status: TrialStatus.CONFIRMED,
+          session: {
+            date,
+            startTime: Between(`${time}:00`, `${time}:59`),
+          },
+        },
+        relations: ['session'],
+      }),
+    ]);
+
+    const activeTrialCount = trialBookings.filter(
+      (tb) =>
+        tb.session &&
+        tb.session.date === date &&
+        tb.session.startTime.substring(0, 5) === time,
+    ).length;
+
+    return regularCount + activeTrialCount === 0;
+  }
+
   async findAvailableTeacher(
     date: string,
     startTime: string,

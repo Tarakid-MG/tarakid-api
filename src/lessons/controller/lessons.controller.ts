@@ -61,4 +61,13 @@ export class LessonsController {
   async getLesson(@Param('id') id: string) {
     return await this.lessonsService.getLessonById(id);
   }
+
+  @Get('revision-assets/:bucketName')
+  @ApiOperation({
+    summary: 'List lesson revision image assets from a MinIO bucket',
+  })
+  @ApiParam({ name: 'bucketName', description: 'MinIO bucket name' })
+  async getRevisionAssets(@Param('bucketName') bucketName: string) {
+    return await this.lessonsService.getRevisionAssets(bucketName);
+  }
 }

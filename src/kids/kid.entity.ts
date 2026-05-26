@@ -75,8 +75,14 @@ export class Kid {
   @Column({ default: 0 })
   stars: number;
 
+  @Column({ nullable: true })
+  avatarKey?: string;
+
   @Column({ type: 'text', nullable: true })
   avatarUrl?: string;
+
+  @Column({ type: 'simple-json', nullable: true })
+  purchasedAvatarKeys?: string[];
 
   @ManyToOne(() => User, (user) => user.kids, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

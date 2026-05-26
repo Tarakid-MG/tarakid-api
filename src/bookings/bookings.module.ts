@@ -24,6 +24,7 @@ import { FreeTrialBooking } from '../free-trial/entities/free-trial-booking.enti
 import { BookingAssignmentHistory } from './entities/booking-assignment-history.entity';
 import { NotificationModule } from '../notifications/notification.module';
 import { LessonsModule } from '../lessons/lessons.module';
+import { Feedback } from '../feedback/entities/feedback.entity';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { LessonsModule } from '../lessons/lessons.module';
       User,
       FreeTrialBooking,
       BookingAssignmentHistory,
+      Feedback,
     ]),
     SubscriptionsModule,
     ConfigModule,

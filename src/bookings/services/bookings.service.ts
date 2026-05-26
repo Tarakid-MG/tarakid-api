@@ -76,13 +76,21 @@ export class BookingsService {
       const dayOfWeek = sessionDate.getDay();
       const dateStr = sessionDate.toISOString().split('T')[0];
 
-      const isAvailable = await this.availabilityService.isSlotAvailable(
-        dateStr,
-        bookingSlot.startTime,
-      );
+      const isAvailable = createBookingDto.teacherId
+        ? await this.availabilityService.isTeacherSlotAvailable(
+            dateStr,
+            bookingSlot.startTime,
+            createBookingDto.teacherId,
+          )
+        : await this.availabilityService.isSlotAvailable(
+            dateStr,
+            bookingSlot.startTime,
+          );
       if (!isAvailable) {
         throw new BadRequestException(
-          `Aucun créneau disponible pour le ${dateStr} à ${bookingSlot.startTime}.`,
+          createBookingDto.teacherId
+            ? `Le professeur assigné n'est pas disponible le ${dateStr} à ${bookingSlot.startTime}.`
+            : `Aucun créneau disponible pour le ${dateStr} à ${bookingSlot.startTime}.`,
         );
       }
 
@@ -97,6 +105,7 @@ export class BookingsService {
         isRecurring: bookingSlot.isRecurring,
         recurrencePattern: bookingSlot.recurrencePattern,
         status: BookingStatus.SCHEDULED,
+        teacherId: createBookingDto.teacherId ?? null,
       });
 
       bookings.push(booking);

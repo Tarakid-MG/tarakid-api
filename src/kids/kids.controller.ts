@@ -76,6 +76,18 @@ export class KidsController {
     return { level };
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: "Get a kid's profile" })
+  async findOne(@Param('id') id: string): Promise<Kid> {
+    return this.kidService.findById(id);
+  }
+
+  @Get(':id/avatar-options')
+  @ApiOperation({ summary: 'List available kid avatars' })
+  async getAvatarOptions(@Param('id') id: string) {
+    return this.kidService.listAvatarOptions(id);
+  }
+
   @Post(':id/avatar')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
@@ -114,5 +126,18 @@ export class KidsController {
   @ApiOperation({ summary: 'Add a star to a kid' })
   async addStar(@Param('id') id: string): Promise<Kid> {
     return this.kidService.addStar(id);
+  }
+
+  @Patch(':id/select-avatar')
+  @ApiOperation({ summary: 'Select or buy a kid avatar' })
+  async selectAvatar(
+    @Param('id') id: string,
+    @Body('avatarKey') avatarKey: string,
+  ): Promise<Kid> {
+    if (!avatarKey) {
+      throw new BadRequestException('avatarKey is required');
+    }
+
+    return this.kidService.selectAvatar(id, avatarKey);
   }
 }

@@ -14,6 +14,7 @@ import { AgoraModule } from './agora/agora.module';
 import { PaymentsModule } from './payments/payments.module';
 import { NotificationModule } from './notifications/notification.module';
 import { ChatModule } from './chat/chat.module';
+import { FeedbackModule } from './feedback/feedback.module';
 
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -45,6 +46,7 @@ import { User } from 'src/users/user.entity';
     PaymentsModule,
     NotificationModule,
     ChatModule,
+    FeedbackModule,
   ],
   controllers: [AppController],
   providers: [AppService],
