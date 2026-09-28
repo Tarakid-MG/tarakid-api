@@ -40,6 +40,80 @@ export class LessonsService {
     private readonly minioService: MinioService,
   ) {}
 
+  private getThumbnailBucketName(): string {
+    if (!process.env.MINIO_BUCKET_NAME_LESSONS_THUMBNAILS) {
+      throw new Error('MINIO_BUCKET_NAME_LESSONS_THUMBNAILS is not defined');
+    }
+
+    return this.sanitizeBucketName(
+      process.env.MINIO_BUCKET_NAME_LESSONS_THUMBNAILS,
+    );
+  }
+
+  private extractThumbnailObjectKey(
+    thumbnailValue?: string | null,
+  ): string | null {
+    if (!thumbnailValue) return null;
+
+    if (!/^https?:\/\//i.test(thumbnailValue)) {
+      return thumbnailValue;
+    }
+
+    try {
+      const bucketName = this.getThumbnailBucketName();
+      const url = new URL(thumbnailValue);
+      const pathSegments = url.pathname.split('/').filter(Boolean);
+      const bucketIndex = pathSegments.findIndex(
+        (segment) => segment === bucketName,
+      );
+
+      if (bucketIndex >= 0 && bucketIndex < pathSegments.length - 1) {
+        return decodeURIComponent(pathSegments.slice(bucketIndex + 1).join('/'));
+      }
+    } catch (error) {
+      console.warn('Unable to parse thumbnail URL:', thumbnailValue, error);
+    }
+
+    return null;
+  }
+
+  private async withFreshThumbnailUrl<T extends { thumbnailUrl?: string | null }>(
+    lesson: T,
+  ): Promise<T> {
+    const objectKey = this.extractThumbnailObjectKey(lesson.thumbnailUrl);
+    if (!objectKey) {
+      return lesson;
+    }
+
+    try {
+      const bucketName = this.getThumbnailBucketName();
+      return {
+        ...lesson,
+        thumbnailUrl: await this.minioService.getFileUrl(bucketName, objectKey),
+      };
+    } catch (error) {
+      console.warn(
+        `Unable to generate fresh thumbnail URL for lesson asset "${objectKey}"`,
+        error,
+      );
+      return {
+        ...lesson,
+        thumbnailUrl: undefined,
+      };
+    }
+  }
+
+  private async hydrateUnitThumbnails(units: Unit[]): Promise<Unit[]> {
+    return await Promise.all(
+      units.map(async (unit) => ({
+        ...unit,
+        lessons: await Promise.all(
+          unit.lessons.map((lesson) => this.withFreshThumbnailUrl(lesson)),
+        ),
+      })),
+    );
+  }
+
   async isKidEnrolled(kidId: string): Promise<boolean> {
     const activeSubscription = await this.subscriptionRepository.findOne({
       where: { kidId, status: SubscriptionStatus.ACTIVE },
@@ -64,7 +138,7 @@ export class LessonsService {
   }
 
   async getUnitsByLevel(level: KidLevel): Promise<Unit[]> {
-    return await this.unitRepository.find({
+    const units = await this.unitRepository.find({
       where: { level },
       relations: ['lessons'],
       order: {
@@ -74,6 +148,8 @@ export class LessonsService {
         },
       },
     });
+
+    return await this.hydrateUnitThumbnails(units);
   }
 
   async getLessonsByKidAndLevel(kidId: string, level: KidLevel) {
@@ -228,7 +304,7 @@ export class LessonsService {
     if (!lesson) {
       throw new NotFoundException('Lesson not found');
     }
-    return lesson;
+    return await this.withFreshThumbnailUrl(lesson);
   }
 
   async getRevisionAssets(bucketName: string) {
@@ -290,13 +366,7 @@ export class LessonsService {
     const lesson = await this.lessonRepository.findOneBy({ id });
     if (!lesson) throw new NotFoundException('Lesson not found');
 
-    if (!process.env.MINIO_BUCKET_NAME_LESSONS_THUMBNAILS) {
-      throw new Error('MINIO_BUCKET_NAME_LESSONS_THUMBNAILS is not defined');
-    }
-
-    const bucketName = this.sanitizeBucketName(
-      process.env.MINIO_BUCKET_NAME_LESSONS_THUMBNAILS,
-    );
+    const bucketName = this.getThumbnailBucketName();
     const fileName = `thumbnail-${Date.now()}.${file.originalname.split('.').pop()}`;
 
     await this.minioService.uploadFile(
@@ -306,11 +376,12 @@ export class LessonsService {
       file.mimetype,
     );
 
-    const url = await this.minioService.getFileUrl(bucketName, fileName);
-    lesson.thumbnailUrl = url;
+    lesson.thumbnailUrl = fileName;
     await this.lessonRepository.save(lesson);
 
-    return { thumbnailUrl: url };
+    return {
+      thumbnailUrl: await this.minioService.getFileUrl(bucketName, fileName),
+    };
   }
 
   private sanitizeBucketName(name: string): string {

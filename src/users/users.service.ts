@@ -6,12 +6,14 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UserRole } from './enums/user-role.enum';
 import * as bcrypt from 'bcrypt';
+import { MinioService } from '../minio/minio.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    private readonly minioService: MinioService,
   ) {}
 
   async findById(id: number): Promise<User> {
@@ -20,6 +22,28 @@ export class UsersService {
       relations: ['kids', 'bookings'],
     });
     if (!user) throw new NotFoundException('Utilisateur non trouvé');
+
+    if (user.kids?.length) {
+      user.kids = await Promise.all(
+        user.kids.map(async (kid) => {
+          if (!kid.avatarUrl) {
+            return kid;
+          }
+
+          try {
+            return {
+              ...kid,
+              avatarUrl: await this.minioService.refreshPresignedUrl(
+                kid.avatarUrl,
+              ),
+            };
+          } catch {
+            return kid;
+          }
+        }),
+      );
+    }
+
     return user;
   }
 

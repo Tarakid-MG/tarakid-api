@@ -29,6 +29,23 @@ export class MinioService {
     }
   }
 
+  async refreshPresignedUrl(fileUrl: string): Promise<string> {
+    try {
+      const parsed = new URL(fileUrl);
+      const pathParts = parsed.pathname.split('/').filter(Boolean);
+      const [bucketName, ...objectParts] = pathParts;
+      const fileName = objectParts.join('/');
+
+      if (!bucketName || !fileName) {
+        throw new Error('Invalid MinIO object URL');
+      }
+
+      return await this.getFileUrl(bucketName, decodeURIComponent(fileName));
+    } catch {
+      throw new InternalServerErrorException('Error refreshing MinIO URL');
+    }
+  }
+
   async uploadFile(
     bucketName: string,
     fileName: string,
