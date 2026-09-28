@@ -11,7 +11,6 @@ import { BookingsModule } from './bookings/bookings.module';
 import { MinioModule } from './minio/minio.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { AgoraModule } from './agora/agora.module';
-import { PaymentsModule } from './payments/payments.module';
 import { NotificationModule } from './notifications/notification.module';
 import { ChatModule } from './chat/chat.module';
 import { FeedbackModule } from './feedback/feedback.module';
@@ -43,7 +42,6 @@ import { User } from 'src/users/user.entity';
     MinioModule,
     LessonsModule,
     AgoraModule,
-    PaymentsModule,
     NotificationModule,
     ChatModule,
     FeedbackModule,
