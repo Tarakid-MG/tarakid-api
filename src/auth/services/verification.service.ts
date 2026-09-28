@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -36,10 +40,20 @@ export class VerificationService {
     user.verificationToken = verificationToken;
     await this.userRepo.save(user);
 
-    await this.mailerService.sendVerificationEmail(
-      user.email,
-      verificationToken,
-    );
+    try {
+      await this.mailerService.sendVerificationEmail(
+        user.email,
+        verificationToken,
+      );
+    } catch (error) {
+      console.error(
+        `Failed to resend verification email to ${user.email}:`,
+        error,
+      );
+      throw new ServiceUnavailableException(
+        "Impossible d'envoyer l'email pour le moment, réessayez plus tard",
+      );
+    }
 
     return { message: 'Email de vérification renvoyé' };
   }

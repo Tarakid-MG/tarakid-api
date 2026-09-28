@@ -42,10 +42,17 @@ export class RegisterService {
       await this.kidService.create(savedUser, dto.kidInfo);
     }
 
-    await this.mailerService.sendVerificationEmail(
-      user.email,
-      verificationToken,
-    );
+    try {
+      await this.mailerService.sendVerificationEmail(
+        user.email,
+        verificationToken,
+      );
+    } catch (error) {
+      console.error(
+        `Failed to send verification email to ${user.email}:`,
+        error,
+      );
+    }
 
     return {
       message:

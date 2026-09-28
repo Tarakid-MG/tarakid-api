@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -23,7 +27,18 @@ export class ResetPasswordService {
     user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
 
     await this.userRepo.save(user);
-    await this.mailerService.sendResetPasswordEmail(user.email, resetToken);
+
+    try {
+      await this.mailerService.sendResetPasswordEmail(user.email, resetToken);
+    } catch (error) {
+      console.error(
+        `Failed to send reset password email to ${user.email}:`,
+        error,
+      );
+      throw new ServiceUnavailableException(
+        "Impossible d'envoyer l'email pour le moment, réessayez plus tard",
+      );
+    }
 
     return {
       message: 'Lien de réinitialisation du mot de passe envoyé à votre email',
