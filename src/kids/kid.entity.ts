@@ -11,34 +11,12 @@ import {
 import { User } from '../users/user.entity';
 import type { Subscription } from '../subscriptions/entities/subscription.entity';
 import type { Booking } from '../bookings/entities/booking.entity';
+import { Level } from '../lessons/entities/level.entity';
 
-export enum Gender {
-  BOY = 'BOY',
-  GIRL = 'GIRL',
-  OTHER = 'OTHER',
-}
-
-export enum EnglishLevel {
-  NONE = 'NONE',
-  WORDS = 'WORDS',
-  SENTENCES = 'SENTENCES',
-  FLUENT = 'FLUENT',
-}
-
-export enum MotherTongueLevel {
-  NONE = 'NONE',
-  SOME = 'SOME',
-  FLUENT = 'FLUENT',
-}
-
-export enum KidLevel {
-  L0 = 'L0',
-  L1 = 'L1',
-  L2 = 'L2',
-  L3 = 'L3',
-  L4 = 'L4',
-  L5 = 'L5',
-}
+import { Gender } from './enums/kid-gender.enum';
+import { EnglishLevel } from './enums/english-level.enum';
+import { MotherTongueLevel } from './enums/mother-tongue-level.enum';
+import { KidLevel } from './enums/kid-level.enum';
 
 @Entity('kids')
 export class Kid {
@@ -66,8 +44,27 @@ export class Kid {
   @Column({ type: 'enum', enum: EnglishLevel })
   englishSpeakingLevel: EnglishLevel;
 
-  @Column({ type: 'enum', enum: KidLevel, default: KidLevel.L0 })
+  @Column({
+    type: 'enum',
+    enum: KidLevel,
+    default: KidLevel.L0,
+    nullable: true,
+  })
   level: KidLevel;
+
+  @ManyToOne(() => Level, { nullable: true })
+  @JoinColumn({ name: 'levelId' })
+  levelEntity: Level;
+
+  @Column({ nullable: true })
+  levelId: string;
+
+  @Column({ nullable: true })
+  assignedTeacherId: number;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'assignedTeacherId' })
+  assignedTeacher: User;
 
   @Column()
   learningDuration: string;
@@ -75,8 +72,17 @@ export class Kid {
   @Column('simple-array')
   hobbies: string[];
 
+  @Column({ default: 0 })
+  stars: number;
+
+  @Column({ nullable: true })
+  avatarKey?: string;
+
   @Column({ type: 'text', nullable: true })
   avatarUrl?: string;
+
+  @Column({ type: 'simple-json', nullable: true })
+  purchasedAvatarKeys?: string[];
 
   @ManyToOne(() => User, (user) => user.kids, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

@@ -5,19 +5,25 @@ import {
   IsOptional,
   IsUUID,
   IsArray,
+  IsEnum,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { LessonType } from '../enums/lesson-type.enum';
 
 export class CreateLessonDto {
   @ApiProperty({ example: 'Introduction to Colors' })
   @IsString()
   title: string;
 
-  @ApiProperty({ example: 'genially', required: false })
-  @IsString()
+  @ApiProperty({
+    enum: LessonType,
+    example: LessonType.GENIALLY,
+    required: false,
+  })
+  @IsEnum(LessonType)
   @IsOptional()
-  type?: string;
+  type?: LessonType;
 
   @ApiProperty({ example: 'https://example.com/content' })
   @IsString()
@@ -30,6 +36,11 @@ export class CreateLessonDto {
   @ApiProperty({ example: 'uuid-of-unit' })
   @IsUUID()
   unitId: string;
+
+  @ApiProperty({ example: 'https://minio/thumb.png', required: false })
+  @IsString()
+  @IsOptional()
+  thumbnailUrl?: string;
 }
 
 export class CreateLessonsBulkDto {

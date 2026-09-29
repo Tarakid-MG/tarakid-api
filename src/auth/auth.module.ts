@@ -5,7 +5,9 @@ import { User } from '../users/user.entity';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { AuthController } from './auth.controller';
+import { AuthController } from './controller/auth.controller';
+import { AuthAdminController } from './controller/auth.admin.controller';
+
 import { MailerService } from './services/mailer.service';
 import { RegisterService } from './services/register.service';
 import { LoginService } from './services/login.service';
@@ -42,6 +44,6 @@ import { KidModule } from '../kids/kid.module';
     ResetPasswordService,
     GoogleAuthService,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AuthAdminController],
 })
 export class AuthModule {}

@@ -28,6 +28,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException();
     }
+
+    user.lastActivity = new Date();
+    await this.userRepo.save(user);
+
     return user;
   }
 }

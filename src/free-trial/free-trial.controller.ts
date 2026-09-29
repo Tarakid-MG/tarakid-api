@@ -6,30 +6,15 @@ import {
   Param,
   ParseIntPipe,
   BadRequestException,
-  Delete,
   Patch,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { FreeTrialService } from './free-trial.service';
-import { CreateSessionDto } from './dto/create-session.dto';
-import { CreateBulkSessionsDto } from './dto/create-bulk-sessions.dto';
 
-@ApiTags('Free Trial')
+@ApiTags('Client - Free Trial')
 @Controller('free-trial')
 export class FreeTrialController {
   constructor(private readonly freeTrialService: FreeTrialService) {}
-
-  @Post('sessions')
-  @ApiOperation({ summary: 'Create a new free trial session (Admin)' })
-  createSession(@Body() createSessionDto: CreateSessionDto) {
-    return this.freeTrialService.createSession(createSessionDto);
-  }
-
-  @Get('available-sessions')
-  @ApiOperation({ summary: 'Get all available free trial sessions' })
-  findAllAvailableSessions() {
-    return this.freeTrialService.findAllAvailableSessions();
-  }
 
   @Post('book/:sessionId')
   @ApiOperation({ summary: 'Book a free trial session' })
@@ -70,27 +55,6 @@ export class FreeTrialController {
       body.kidId,
     );
   }
-  @Delete('sessions/:id')
-  @ApiOperation({ summary: 'Delete a free trial session (Admin)' })
-  deleteSession(@Param('id', ParseIntPipe) id: number) {
-    return this.freeTrialService.deleteSession(id);
-  }
-
-  @Post('bulk-sessions')
-  @ApiOperation({ summary: 'Create multiple free trial sessions (Admin)' })
-  createBulkSessions(@Body() createBulkSessionsDto: CreateBulkSessionsDto) {
-    return this.freeTrialService.createBulkSessions(createBulkSessionsDto);
-  }
-
-  @Patch('sessions/:id')
-  @ApiOperation({ summary: 'Update a free trial session (Admin)' })
-  updateSession(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateData: any,
-  ) {
-    return this.freeTrialService.updateSession(id, updateData);
-  }
-
   @Get('bookings/user/:userId')
   @ApiOperation({ summary: 'Get user bookings with session details' })
   getUserBookings(@Param('userId', ParseIntPipe) userId: number) {
@@ -123,5 +87,49 @@ export class FreeTrialController {
       );
     }
     return this.freeTrialService.reportBooking(bookingId, userId);
+  }
+
+  @Get(':id/classroom-status')
+  @ApiOperation({ summary: 'Get classroom status for a trial booking' })
+  async getClassroomStatus(@Param('id') id: string) {
+    return this.freeTrialService.getClassroomStatus(id);
+  }
+
+  @Patch(':id/waiting-status')
+  @ApiOperation({ summary: 'Update waiting status for a kid' })
+  async updateWaitingStatus(
+    @Param('id') id: string,
+    @Body('isKidWaiting') isKidWaiting: boolean,
+  ) {
+    return this.freeTrialService.updateClassroomStatus(id, { isKidWaiting });
+  }
+
+  @Patch(':id/acceptance-status')
+  @ApiOperation({ summary: 'Update acceptance status for a kid' })
+  async updateAcceptanceStatus(
+    @Param('id') id: string,
+    @Body('isKidAccepted') isKidAccepted: boolean,
+  ) {
+    return this.freeTrialService.updateClassroomStatus(id, { isKidAccepted });
+  }
+
+  @Patch(':id/interaction')
+  @ApiOperation({ summary: 'Update interaction data for a session' })
+  async updateInteraction(
+    @Param('id') id: string,
+    @Body('interactionData') interactionData: string,
+  ) {
+    return this.freeTrialService.updateInteractionData(id, interactionData);
+  }
+
+  @Patch(':id/presence')
+  @ApiOperation({ summary: 'Update teacher presence in class' })
+  async updatePresence(
+    @Param('id') id: string,
+    @Body('isTeacherInClass') isTeacherInClass: boolean,
+  ) {
+    return this.freeTrialService.updateClassroomStatus(id, {
+      isTeacherInClass,
+    });
   }
 }

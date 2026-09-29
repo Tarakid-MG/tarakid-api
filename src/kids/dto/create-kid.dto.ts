@@ -6,12 +6,10 @@ import {
   IsNotEmpty,
   IsOptional,
 } from 'class-validator';
-import {
-  Gender,
-  EnglishLevel,
-  MotherTongueLevel,
-  KidLevel,
-} from '../kid.entity';
+import { Gender } from '../enums/kid-gender.enum';
+import { MotherTongueLevel } from '../enums/mother-tongue-level.enum';
+import { EnglishLevel } from '../enums/english-level.enum';
+import { KidLevel } from '../enums/kid-level.enum';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateKidDto {

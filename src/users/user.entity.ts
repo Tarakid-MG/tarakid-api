@@ -41,6 +41,9 @@ export class User {
   @Column({ type: 'enum', enum: ClientAccountType, nullable: true })
   accountType?: ClientAccountType;
 
+  @Column({ default: true })
+  isActive: boolean;
+
   @Column({ default: false })
   isVerified: boolean;
 
@@ -67,6 +70,9 @@ export class User {
 
   @Column({ default: 10 })
   commitmentScore: number;
+
+  @Column({ default: 5 })
+  hearts: number;
 
   @Column({ default: 'average' })
   competenceLevel: string;
@@ -112,6 +118,36 @@ export class User {
 
   @OneToMany('Booking', 'user')
   regularBookings: Booking[];
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastLogin: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastActivity: Date;
+
+  @Column({ default: false })
+  isOnline: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  about?: string;
+
+  @Column({ type: 'int', nullable: true })
+  experienceYears?: number;
+
+  @Column({ type: 'json', nullable: true })
+  languages?: { name: string; level: string }[];
+
+  @Column({ type: 'simple-array', nullable: true })
+  specialties?: string[];
+
+  @Column({ type: 'text', nullable: true })
+  teachingStyle?: string;
+
+  @Column({ type: 'text', nullable: true })
+  education?: string;
+
+  @Column({ type: 'simple-array', nullable: true })
+  certifications?: string[];
 
   @CreateDateColumn()
   createdAt: Date;

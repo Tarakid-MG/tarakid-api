@@ -23,14 +23,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { KidService } from './kid.service';
 import { CreateKidDto } from './dto/create-kid.dto';
 import { UpdateKidDto } from './dto/update-kid.dto';
-import { User } from '../users/user.entity';
 import { Kid } from './kid.entity';
 import { MinioService } from '../minio/minio.service';
-import { Request } from 'express';
-
-interface RequestWithUser extends Request {
-  user: User;
-}
+import { RequestWithUser } from '../auth/interfaces/request-with-user.interface';
 
 interface MulterFile {
   originalname: string;
@@ -39,7 +34,7 @@ interface MulterFile {
   size: number;
 }
 
-@ApiTags('Kids')
+@ApiTags('Client - Kids')
 @Controller('kids')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
@@ -61,10 +56,17 @@ export class KidsController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update a kid profile' })
   async update(
+    @Req() req: RequestWithUser,
     @Param('id') id: string,
     @Body() dto: UpdateKidDto,
   ): Promise<Kid> {
-    return this.kidService.update(id, dto);
+    return this.kidService.update(id, dto, req.user);
+  }
+
+  @Get(':id/level-history')
+  @ApiOperation({ summary: "Get a kid's level history" })
+  async getLevelHistory(@Param('id') id: string) {
+    return this.kidService.getLevelHistory(id);
   }
 
   @Get(':id/level')
@@ -72,6 +74,18 @@ export class KidsController {
   async getLevel(@Param('id') id: string) {
     const level = await this.kidService.getLevel(id);
     return { level };
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: "Get a kid's profile" })
+  async findOne(@Param('id') id: string): Promise<Kid> {
+    return this.kidService.findById(id);
+  }
+
+  @Get(':id/avatar-options')
+  @ApiOperation({ summary: 'List available kid avatars' })
+  async getAvatarOptions(@Param('id') id: string) {
+    return this.kidService.listAvatarOptions(id);
   }
 
   @Post(':id/avatar')
@@ -106,5 +120,24 @@ export class KidsController {
     );
     const avatarUrl = await this.minioService.getFileUrl(bucketName, fileName);
     return await this.kidService.updateAvatar(id, avatarUrl);
+  }
+
+  @Patch(':id/add-star')
+  @ApiOperation({ summary: 'Add a star to a kid' })
+  async addStar(@Param('id') id: string): Promise<Kid> {
+    return this.kidService.addStar(id);
+  }
+
+  @Patch(':id/select-avatar')
+  @ApiOperation({ summary: 'Select or buy a kid avatar' })
+  async selectAvatar(
+    @Param('id') id: string,
+    @Body('avatarKey') avatarKey: string,
+  ): Promise<Kid> {
+    if (!avatarKey) {
+      throw new BadRequestException('avatarKey is required');
+    }
+
+    return this.kidService.selectAvatar(id, avatarKey);
   }
 }

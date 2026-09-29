@@ -1,5 +1,7 @@
 export interface TeacherStats {
   commitmentScore: number;
+  hearts: number;
+  maxHearts: number;
   currentCompetence: string;
   competences: {
     poor: number;

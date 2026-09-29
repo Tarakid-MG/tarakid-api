@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Unit } from './entities/unit.entity';
 import { Lesson } from './entities/lesson.entity';
-import { KidLevel } from '../kids/kid.entity';
+import { KidLevel } from '../kids/enums/kid-level.enum';
+import { Level as LevelEntity } from './entities/level.entity';
+import { LevelRule } from './entities/level-rule.entity';
 import { Booking, BookingStatus } from '../bookings/entities/booking.entity';
 import {
   Subscription,
@@ -11,6 +13,8 @@ import {
 } from '../subscriptions/entities/subscription.entity';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { CreateUnitDto } from './dto/create-unit.dto';
+import { LessonType } from './enums/lesson-type.enum';
+import { MinioService } from '../minio/minio.service';
 import {
   FreeTrialBooking,
   BookingStatus as TrialBookingStatus,
@@ -29,7 +33,86 @@ export class LessonsService {
     private readonly subscriptionRepository: Repository<Subscription>,
     @InjectRepository(FreeTrialBooking)
     private readonly trialBookingRepository: Repository<FreeTrialBooking>,
+    @InjectRepository(LevelEntity)
+    private readonly levelRepository: Repository<LevelEntity>,
+    @InjectRepository(LevelRule)
+    private readonly levelRuleRepository: Repository<LevelRule>,
+    private readonly minioService: MinioService,
   ) {}
+
+  private getThumbnailBucketName(): string {
+    if (!process.env.MINIO_BUCKET_NAME_LESSONS_THUMBNAILS) {
+      throw new Error('MINIO_BUCKET_NAME_LESSONS_THUMBNAILS is not defined');
+    }
+
+    return this.sanitizeBucketName(
+      process.env.MINIO_BUCKET_NAME_LESSONS_THUMBNAILS,
+    );
+  }
+
+  private extractThumbnailObjectKey(
+    thumbnailValue?: string | null,
+  ): string | null {
+    if (!thumbnailValue) return null;
+
+    if (!/^https?:\/\//i.test(thumbnailValue)) {
+      return thumbnailValue;
+    }
+
+    try {
+      const bucketName = this.getThumbnailBucketName();
+      const url = new URL(thumbnailValue);
+      const pathSegments = url.pathname.split('/').filter(Boolean);
+      const bucketIndex = pathSegments.findIndex(
+        (segment) => segment === bucketName,
+      );
+
+      if (bucketIndex >= 0 && bucketIndex < pathSegments.length - 1) {
+        return decodeURIComponent(pathSegments.slice(bucketIndex + 1).join('/'));
+      }
+    } catch (error) {
+      console.warn('Unable to parse thumbnail URL:', thumbnailValue, error);
+    }
+
+    return null;
+  }
+
+  private async withFreshThumbnailUrl<T extends { thumbnailUrl?: string | null }>(
+    lesson: T,
+  ): Promise<T> {
+    const objectKey = this.extractThumbnailObjectKey(lesson.thumbnailUrl);
+    if (!objectKey) {
+      return lesson;
+    }
+
+    try {
+      const bucketName = this.getThumbnailBucketName();
+      return {
+        ...lesson,
+        thumbnailUrl: await this.minioService.getFileUrl(bucketName, objectKey),
+      };
+    } catch (error) {
+      console.warn(
+        `Unable to generate fresh thumbnail URL for lesson asset "${objectKey}"`,
+        error,
+      );
+      return {
+        ...lesson,
+        thumbnailUrl: undefined,
+      };
+    }
+  }
+
+  private async hydrateUnitThumbnails(units: Unit[]): Promise<Unit[]> {
+    return await Promise.all(
+      units.map(async (unit) => ({
+        ...unit,
+        lessons: await Promise.all(
+          unit.lessons.map((lesson) => this.withFreshThumbnailUrl(lesson)),
+        ),
+      })),
+    );
+  }
 
   async isKidEnrolled(kidId: string): Promise<boolean> {
     const activeSubscription = await this.subscriptionRepository.findOne({
@@ -55,7 +138,7 @@ export class LessonsService {
   }
 
   async getUnitsByLevel(level: KidLevel): Promise<Unit[]> {
-    return await this.unitRepository.find({
+    const units = await this.unitRepository.find({
       where: { level },
       relations: ['lessons'],
       order: {
@@ -65,6 +148,8 @@ export class LessonsService {
         },
       },
     });
+
+    return await this.hydrateUnitThumbnails(units);
   }
 
   async getLessonsByKidAndLevel(kidId: string, level: KidLevel) {
@@ -75,14 +160,19 @@ export class LessonsService {
       where: { kidId, status: SubscriptionStatus.ACTIVE },
     });
 
+    const suggestedLesson = await this.getSuggestedLesson(kidId, level);
+
     if (activeSubscription) {
-      return units.map((unit) => ({
-        ...unit,
-        lessons: unit.lessons.map((lesson) => ({
-          ...lesson,
-          isLocked: false,
+      return {
+        units: units.map((unit) => ({
+          ...unit,
+          lessons: unit.lessons.map((lesson) => ({
+            ...lesson,
+            isLocked: false,
+          })),
         })),
-      }));
+        suggestedLessonId: suggestedLesson?.id || null,
+      };
     }
 
     // 2. Otherwise, unlock N lessons based on booking count
@@ -100,7 +190,7 @@ export class LessonsService {
     const totalBookingCount = regularBookingCount + trialBookingCount;
 
     let unlockedCount = 0;
-    return units.map((unit) => ({
+    const mappedUnits = units.map((unit) => ({
       ...unit,
       lessons: unit.lessons.map((lesson) => {
         const isLocked = unlockedCount >= totalBookingCount;
@@ -111,6 +201,99 @@ export class LessonsService {
         };
       }),
     }));
+
+    return {
+      units: mappedUnits,
+      suggestedLessonId: suggestedLesson?.id || null,
+    };
+  }
+
+  async getSuggestedLesson(
+    kidId: string,
+    level: KidLevel,
+  ): Promise<{ id: string; title: string; order: number } | null> {
+    try {
+      // 1. Get all lessons for this level
+      const units = await this.getUnitsByLevel(level);
+      const allLessons = units.flatMap((u) => u.lessons);
+
+      if (allLessons.length === 0) return null;
+
+      // 2. Check for assigned lesson in the NEXT upcoming session
+      // Regular
+      const nextRegular = await this.bookingRepository.findOne({
+        where: { kidId, status: BookingStatus.SCHEDULED },
+        order: { sessionDate: 'ASC', startTime: 'ASC' },
+        relations: ['lesson'],
+      });
+
+      // Trial
+      const nextTrial = await this.trialBookingRepository.findOne({
+        where: { kidId, status: TrialBookingStatus.CONFIRMED },
+        relations: ['session', 'lesson'],
+        // We can't order trial bookings easily by session date in findOne here without more joins,
+        // but typically there's only one active trial.
+      });
+
+      // Compare dates to find the EARLIEST upcoming session
+      let earliestNext: Booking | FreeTrialBooking | null = null;
+
+      if (nextRegular && nextTrial && nextTrial.session) {
+        const dateRegStr =
+          nextRegular.sessionDate instanceof Date
+            ? nextRegular.sessionDate.toISOString().split('T')[0]
+            : nextRegular.sessionDate;
+        const dateReg = new Date(`${dateRegStr}T${nextRegular.startTime}`);
+        const dateTrial = new Date(
+          `${nextTrial.session.date}T${nextTrial.session.startTime}`,
+        );
+        earliestNext = dateReg < dateTrial ? nextRegular : nextTrial;
+      } else {
+        earliestNext = nextRegular || nextTrial;
+      }
+
+      if (earliestNext && earliestNext.lessonId) {
+        const lesson = await this.lessonRepository.findOneBy({
+          id: earliestNext.lessonId,
+        });
+        if (lesson) {
+          return { id: lesson.id, title: lesson.title, order: lesson.order };
+        }
+      }
+
+      // 3. If no session assigned, find the first non-completed lesson
+      const [regularCompleted, trialCompleted] = await Promise.all([
+        this.bookingRepository.find({
+          where: { kidId, status: BookingStatus.COMPLETED },
+          select: ['lessonId'],
+        }),
+        this.trialBookingRepository.find({
+          where: { kidId, status: TrialBookingStatus.COMPLETED },
+          select: ['lessonId'],
+        }),
+      ]);
+
+      const completedLessonIds = new Set(
+        [...regularCompleted, ...trialCompleted]
+          .map((b) => b.lessonId)
+          .filter((id) => !!id),
+      );
+
+      const nextLesson = allLessons.find((l) => !completedLessonIds.has(l.id));
+
+      if (nextLesson) {
+        return {
+          id: nextLesson.id,
+          title: nextLesson.title,
+          order: nextLesson.order,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error calculating suggested lesson:', error);
+      return null;
+    }
   }
 
   async getLessonById(id: string): Promise<Lesson> {
@@ -121,7 +304,23 @@ export class LessonsService {
     if (!lesson) {
       throw new NotFoundException('Lesson not found');
     }
-    return lesson;
+    return await this.withFreshThumbnailUrl(lesson);
+  }
+
+  async getRevisionAssets(bucketName: string) {
+    const sanitizedBucketName = this.sanitizeBucketName(bucketName);
+    const objectKeys = (await this.minioService.listObjects(sanitizedBucketName))
+      .filter((key) => /\.(png|jpe?g|webp|gif|svg)$/i.test(key));
+
+    const assets = await Promise.all(
+      objectKeys.map(async (key) => ({
+        key,
+        name: key.split('/').pop() || key,
+        url: await this.minioService.getFileUrl(sanitizedBucketName, key),
+      })),
+    );
+
+    return assets;
   }
 
   async updateLesson(
@@ -152,6 +351,47 @@ export class LessonsService {
     });
 
     return await this.lessonRepository.save(lesson);
+  }
+
+  async deleteLesson(id: string): Promise<void> {
+    const lesson = await this.lessonRepository.findOneBy({ id });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    await this.lessonRepository.remove(lesson);
+  }
+
+  async uploadThumbnail(
+    id: string,
+    file: Express.Multer.File,
+  ): Promise<{ thumbnailUrl: string }> {
+    const lesson = await this.lessonRepository.findOneBy({ id });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+
+    const bucketName = this.getThumbnailBucketName();
+    const fileName = `thumbnail-${Date.now()}.${file.originalname.split('.').pop()}`;
+
+    await this.minioService.uploadFile(
+      bucketName,
+      fileName,
+      file.buffer,
+      file.mimetype,
+    );
+
+    lesson.thumbnailUrl = fileName;
+    await this.lessonRepository.save(lesson);
+
+    return {
+      thumbnailUrl: await this.minioService.getFileUrl(bucketName, fileName),
+    };
+  }
+
+  private sanitizeBucketName(name: string): string {
+    return (
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || 'lesson-thumbnail'
+    );
   }
 
   async createLesson(createLessonDto: CreateLessonDto): Promise<Lesson> {
@@ -192,8 +432,29 @@ export class LessonsService {
   }
 
   async createUnit(createUnitDto: CreateUnitDto): Promise<Unit> {
-    const unit = this.unitRepository.create(createUnitDto);
+    const { levelId, ...rest } = createUnitDto;
+    const unit = this.unitRepository.create(rest as Partial<Unit>);
+
+    if (levelId) {
+      const level = await this.levelRepository.findOne({
+        where: { id: levelId },
+      });
+      if (!level) throw new NotFoundException('Level not found');
+      unit.levelEntity = level;
+    }
+
     return await this.unitRepository.save(unit);
+  }
+
+  async updateUnit(id: string, dto: Partial<Unit>): Promise<Unit> {
+    const unit = await this.unitRepository.findOne({ where: { id } });
+    if (!unit) throw new NotFoundException('Unit not found');
+    Object.assign(unit, dto);
+    return await this.unitRepository.save(unit);
+  }
+
+  async deleteUnit(id: string): Promise<void> {
+    await this.unitRepository.delete(id);
   }
 
   async seedLevel(
@@ -225,7 +486,7 @@ export class LessonsService {
         const lessonIndex = i + 1;
         return this.lessonRepository.create({
           title: `Lesson ${lessonIndex}`,
-          type: 'genially',
+          type: LessonType.GENIALLY,
           content: '',
           order: lessonIndex,
           unit: savedUnit,
@@ -238,5 +499,56 @@ export class LessonsService {
     }
 
     return createdUnits;
+  }
+
+  // ─── Levels ──────────────────────────────────────────────────────────────────
+
+  async getLevels(): Promise<LevelEntity[]> {
+    return await this.levelRepository.find({ order: { order: 'ASC' } });
+  }
+
+  async createLevel(dto: Partial<LevelEntity>): Promise<LevelEntity> {
+    const level = this.levelRepository.create(dto);
+    return await this.levelRepository.save(level);
+  }
+
+  async updateLevel(
+    id: string,
+    dto: Partial<LevelEntity>,
+  ): Promise<LevelEntity> {
+    const level = await this.levelRepository.findOne({ where: { id } });
+    if (!level) throw new NotFoundException('Level not found');
+    Object.assign(level, dto);
+    const savedLevel = await this.levelRepository.save(level);
+    return savedLevel;
+  }
+
+  async deleteLevel(id: string): Promise<void> {
+    await this.levelRepository.delete(id);
+  }
+
+  // ─── Level Rules ─────────────────────────────────────────────────────────────
+
+  async getLevelRules(): Promise<LevelRule[]> {
+    return await this.levelRuleRepository.find({ order: { priority: 'ASC' } });
+  }
+
+  async createLevelRule(dto: Partial<LevelRule>): Promise<LevelRule> {
+    const rule = this.levelRuleRepository.create(dto);
+    return await this.levelRuleRepository.save(rule);
+  }
+
+  async updateLevelRule(
+    id: string,
+    dto: Partial<LevelRule>,
+  ): Promise<LevelRule> {
+    const rule = await this.levelRuleRepository.findOne({ where: { id } });
+    if (!rule) throw new NotFoundException('Rule not found');
+    Object.assign(rule, dto);
+    return await this.levelRuleRepository.save(rule);
+  }
+
+  async deleteLevelRule(id: string): Promise<void> {
+    await this.levelRuleRepository.delete(id);
   }
 }

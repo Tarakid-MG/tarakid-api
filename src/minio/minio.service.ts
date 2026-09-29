@@ -29,6 +29,23 @@ export class MinioService {
     }
   }
 
+  async refreshPresignedUrl(fileUrl: string): Promise<string> {
+    try {
+      const parsed = new URL(fileUrl);
+      const pathParts = parsed.pathname.split('/').filter(Boolean);
+      const [bucketName, ...objectParts] = pathParts;
+      const fileName = objectParts.join('/');
+
+      if (!bucketName || !fileName) {
+        throw new Error('Invalid MinIO object URL');
+      }
+
+      return await this.getFileUrl(bucketName, decodeURIComponent(fileName));
+    } catch {
+      throw new InternalServerErrorException('Error refreshing MinIO URL');
+    }
+  }
+
   async uploadFile(
     bucketName: string,
     fileName: string,
@@ -65,10 +82,10 @@ export class MinioService {
     }
   }
 
-  async listObjects(bucketName: string) {
+  async listObjects(bucketName: string, prefix = '') {
     try {
       const objects: string[] = [];
-      const stream = this.minioClient.listObjectsV2(bucketName, '', true);
+      const stream = this.minioClient.listObjectsV2(bucketName, prefix, true);
 
       return new Promise<string[]>((resolve, reject) => {
         stream.on('data', (obj) => {
@@ -78,8 +95,10 @@ export class MinioService {
         stream.on('end', () => {
           // Sort items numerically if possible (e.g., 1.png, 2.png)
           objects.sort((a, b) => {
-            const numA = parseInt(a.split('.')[0]);
-            const numB = parseInt(b.split('.')[0]);
+            const baseA = a.split('/').pop() || a;
+            const baseB = b.split('/').pop() || b;
+            const numA = parseInt(baseA.split('.')[0], 10);
+            const numB = parseInt(baseB.split('.')[0], 10);
             if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
             return a.localeCompare(b);
           });
